@@ -1,6 +1,6 @@
-# Revisão Integrativa — Sistema de IA para Pesquisa Científica
+# Revisão Integrativa + Transposição Pedagógica (Design Thinking)
 
-> **Repositório Template.** Este é o ponto de partida para qualquer nova Revisão Integrativa da Literatura assistida por IA. Clone este repositório, configure seu ambiente e invoque `/integrative-review` para começar.
+> **Repositório Template (revisao-dt).** Este é o ponto de partida para projetos de Revisão Integrativa focados em Esporte, Saúde, Lazer e Transposição Pedagógica usando Design Science Research (DSR). Clone este repositório e invoque `/integrative-review` para instanciar a sua pesquisa específica.
 
 ---
 
@@ -9,7 +9,7 @@
 Este sistema opera em duas camadas separadas:
 
 ```
-revisao-integrativa/          ← ESTE REPOSITÓRIO (template base — não altere no GitHub)
+revisao-dt/                   ← ESTE REPOSITÓRIO (template base — clone para iniciar seu projeto)
 ├── kit/                      ← Kit de Agentes (submodule: vitalia-agent-kit)
 │   └── [agents, skills, workflows, scripts]
 ├── .agent/                   ← Sistema de Configuração Local
@@ -62,8 +62,8 @@ ssh -T git@github.com       # testa a conexão
 ### 2.1 Clonar o template com submodules
 
 ```bash
-git clone --recurse-submodules git@github.com:vitalia-platform/revisao-integrativa.git
-cd revisao-integrativa
+git clone --recurse-submodules git@github.com:vitalia-platform/revisao-dt.git
+cd revisao-dt
 ```
 
 > [!NOTE]
