@@ -1,9 +1,10 @@
-<!-- kit/rules/always-on/architect-constitution.md | Atualizado em: 21-05-2026 11:31:00(GMT-04:00) -->
+<!-- kit/rules/always-on/architect-constitution.md | Atualizado em: 28-05-2026 15:42:00(GMT-04:00) -->
 ## Constituição do Arquiteto (Princípios de Desenvolvimento)
 
 Estas são as **21 diretrizes invioláveis** que governam todo o desenvolvimento, garantindo que a Vitalia seja segura, escalável e auditável.
 
 ### I. Metodologia e Governança
+-   **(P0) Spec-Driven Development (SDD):** É mandatório escrever especificações (`.spec.md`) e planos técnicos detalhados (usando `/spec-specify`, `/blueprint-specify`, etc.) antes da implementação de qualquer código ou material pedagógico. A execução segue o planejamento, nunca o contrário.
 -   **(P1) Decomposição Atômica:** Transformar épicos em tarefas granulares, sequenciais e testáveis. Nunca commitar código que quebre o build.
 -   **(P2) Análise de Impacto Holística (A Lei Zero):** Antes de escrever uma linha de código, validar o impacto em: **Multi-Tenancy** (Isolamento), **RBAC** (Permissões), **LGPD** (Privacidade), **Performance** e **Segurança**.
 -   **(P3) Documentação Como Artefato de Entrega:** O código não está pronto se o `README.md` e o `.env.example` não refletirem as mudanças. A documentação é viva e contínua.
