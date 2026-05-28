@@ -1,4 +1,3 @@
-# scripts/review_pipeline/core/config_manager.py | Última Atualização: 21-05-2026 11:31:00(GMT-04:00)
 """
 config_manager.py — Carregamento e Validação do criteria_config.yaml
 
@@ -25,21 +24,8 @@ REQUIRED_BLOCKS = [
 ]
 
 
-def load_env(project_root: str = ".") -> None:
-    """Lê e carrega as variáveis do .env no ambiente de execução."""
-    env_path = os.path.join(project_root, ".env")
-    if os.path.exists(env_path):
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, val = line.split("=", 1)
-                    os.environ[key.strip()] = val.strip().strip("'\"")
-
-def load_config(config_path: str = "./criteria_config.yaml", project_root: str = ".") -> dict:
+def load_config(config_path: str = "./criteria_config.yaml") -> dict:
     """Carrega e valida o criteria_config.yaml. Encerra com orientação se inválido."""
-    load_env(project_root)
-    
     if not os.path.exists(config_path):
         print(f"\n\033[91m[ERRO] Arquivo de configuração não encontrado: {config_path}\033[0m")
         print("Execute o workflow /integrative-review para gerar o arquivo de configuração.")
@@ -58,12 +44,6 @@ def load_config(config_path: str = "./criteria_config.yaml", project_root: str =
     ok, missing = validate_schema(config)
     if not ok:
         _handle_missing_blocks(missing, config_path)
-
-    # Injeta override de variáveis de ambiente seguras (.env) no config carregado
-    if "ollama" in config:
-        env_url = os.environ.get("OLLAMA_BASE_URL", os.environ.get("OLLAMA_API_URL"))
-        if env_url:
-            config["ollama"]["base_url"] = env_url
 
     return config
 

@@ -183,26 +183,7 @@ def main():
     # Merge com PRISMA_LOG existente se houver
     existing_path = output_path if os.path.exists(output_path) else None
     if existing_path:
-        print(f"\n\033[93m[INFO] PRISMA_LOG.csv existente detectado em '{output_path}'.\033[0m")
-        print("\033[93mOpções:\033[0m")
-        print("  [1] Fazer merge/append (adicionar apenas novos artigos e deduplicar)")
-        print("  [2] Reprocessar completamente (sobrescrever arquivo existente)")
-        print("  [3] Abortar")
-        
-        while True:
-            choice = input("\nOpção [1/2/3]: ").strip()
-            if choice == "1":
-                print("  \033[92m✔ Fazendo merge com o histórico existente...\033[0m")
-                break
-            elif choice == "2":
-                print("  \033[92m✔ Reprocessamento completo. Sobrescrevendo...\033[0m")
-                existing_path = None
-                break
-            elif choice == "3":
-                print("\nAbortando.")
-                sys.exit(0)
-            else:
-                print("Opção inválida. Digite 1, 2 ou 3.")
+        print(f"\n  \033[93m[INFO] PRISMA_LOG.csv existente detectado. Fazendo merge...\033[0m")
 
     total, removed = to_prisma_log(
         all_articles,

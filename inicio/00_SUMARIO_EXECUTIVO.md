@@ -1,10 +1,8 @@
 # Sumário Executivo — Revisão Integrativa da Literatura
 
-**Versão:** Template  
-**Data:** [A definir via `/integrative-review`]  
-**Status:** [AGUARDANDO CONFIGURAÇÃO]
-
-> **Este documento é um template.** Os campos abaixo serão preenchidos durante a execução do workflow `/integrative-review`. Mantenha-o no controle de versão do seu repositório de trabalho como registro da identidade da revisão.
+**Versão:** 1.0  
+**Data:** 2026-05-28  
+**Status:** AGUARDANDO AMOSTRA DE CALIBRAÇÃO
 
 ---
 
@@ -12,60 +10,69 @@
 
 | Campo | Conteúdo |
 |---|---|
-| **Título provisório** | [A definir via `/integrative-review`] |
+| **Título provisório** | Design Thinking aplicado à Saúde Positiva: Ecossistemas de Movimento, Lazer e Sono para a Manutenção da Saúde e Prevenção de DCNTs (2010-2026) |
 | **Tipo de estudo** | Revisão Integrativa da Literatura |
 | **Método** | Mendes, Silveira e Galvão (2008) — 6 etapas |
-| **Período de busca** | [A definir] |
-| **Bases de dados** | [A definir — ex: Web of Science / Scopus] |
-| **Idioma primário** | [A definir] |
-| **Periódico alvo** | [A definir] |
+| **Período de busca** | 2010-2026 |
+| **Bases de dados** | Scopus, Web of Science, PubMed (Recomendada), SPORTDiscus (Recomendada) |
+| **Idioma primário** | Todos |
+| **Periódico alvo** | A definir |
 
 ---
 
-## Pergunta Norteadora
+## Pergunta Norteadora (Framework PCC)
 
-> *[A definir via `/integrative-review` — Fase Exploratória (PICO/PCC)]*
+- **População**: Praticantes e comunidades em três eixos: Urbano (espaços públicos), Digital (ecossistemas de wellness) e Institucional (escolas/ambientes corporativos).
+- **Conceito**: Metodologias de Design Thinking, Service Design e Prototipagem Rápida aplicadas como solução para Wicked Problems em saúde.
+- **Contexto**: Promoção da Saúde Positiva e Bem-Estar, com foco em exercício físico, lazer e higiene do sono, fundamentados na Teoria da Autodeterminação (SDT) para adesão a longo prazo.
+
+**Estratégia de Busca (String Técnica)**:
+`("Design Thinking" OR "Human-Centered Design" OR "Service Design" OR "Prototyping") AND ("Physical Activity" OR "Sport" OR "Leisure" OR "Sleep Hygiene" OR "Rest") AND ("Self-Determination Theory" OR "Intrinsic Motivation" OR "Autonomy") AND ("Positive Health" OR "Well-being" OR "NCD Prevention")`
 
 ---
 
 ## Configuração Dinâmica do Projeto
 
 > [!IMPORTANT]
-> **Zero Hardcoding:** Todos os parâmetros operacionais (nomes de pastas, endpoints, modelos, critérios de elegibilidade) são definidos em `criteria_config.yaml`. Esse arquivo é gerado interativamente pelo workflow `/integrative-review` e aprovado pelo pesquisador antes de qualquer processamento em lote.
+> **Zero Hardcoding:** Todos os parâmetros operacionais (nomes de pastas, endpoints, modelos, critérios de elegibilidade) são definidos em `criteria_config.yaml`.
 
 ### Pastas de Trabalho
 
-Os nomes de todas as pastas são definidos durante o preenchimento do painel `/integrative-review`:
-
 | Finalidade | Pasta |
 |---|---|
-| CSV bruto exportado da base de dados | [A definir no painel] |
-| Amostra de calibração — PDFs (Scopus) | [A definir no painel] |
-| Amostra de calibração — CSV (WoS) | [A definir no painel] |
-| Pool de lotes para triagem em massa | [A definir no painel] |
-| Saída do PRISMA (logs e resultados) | [A definir no painel] |
-| Fichamentos (leitura integral) | [A definir no painel] |
+| CSV bruto exportado da base de dados | `exportacao` |
+| Amostra de calibração — PDFs (Scopus) | `amostra/scopus` |
+| Amostra de calibração — CSV (WoS) | `amostra/webofscience` |
+| Pool de lotes para triagem em massa | `lotes` |
+| Saída do PRISMA (logs e resultados) | `saida` |
+| Fichamentos (leitura integral) | `fichamentos` |
 
 ### Domínios de Alto Valor
 
-{{HIGH_VALUE_DOMAINS}}
+- Design Thinking
+- Teoria da Autodeterminação (SDT)
+- Salutogênese
+- Saúde Positiva
+- Wellness
 
-Artigos nos domínios de alto valor receberão classificação `TRENDING_TOPIC` no Log PRISMA, permitindo análise isolada de tendências emergentes.
+Artigos nos domínios de alto valor receberão classificação `TRENDING_TOPIC` no Log PRISMA.
 
 ---
 
 ## Critérios de Elegibilidade
 
-> [!NOTE]
-> Os critérios abaixo serão definidos e aprovados pelo pesquisador durante a análise da amostra de calibração. O workflow `/integrative-review` sugere critérios ativamente com base na amostra depositada.
-
 ### Critérios de Inclusão
 
-{{INCLUSION_CRITERIA}}
+- C1 (Temporal): Publicações entre 2010 e 2026.
+- C2 (Metodológico): Uso do Design como método de co-criação e resolução de problemas complexos.
+- C3 (Interdisciplinar): Cruzamento entre Design e Comportamento/Saúde/Esporte.
+- C4 (Condicionalidade de Dieta): Se o estudo focar em dieta, deve ter intervenção conjunta de exercício físico.
 
 ### Critérios de Exclusão
 
-{{EXCLUSION_CRITERIA}}
+- Estudos puramente nutricionais (sem exercício físico).
+- Estudos fora do recorte temporal 2010-2026.
+- Estudos sem aplicação de métodos de Design para a resolução de problemas de saúde.
 
 ---
 
@@ -79,19 +86,3 @@ Artigos nos domínios de alto valor receberão classificação `TRENDING_TOPIC` 
 | Após leitura na íntegra (Fase 2) | — |
 | **Artigos incluídos na revisão** | **0 (Estaca Zero)** |
 | Fichamentos concluídos | 0 |
-
----
-
-## Próximos Marcos
-
-| Marco | Responsável | Status |
-|---|---|---|
-| Criar repositório de trabalho e configurar remote | Usuário | PENDENTE |
-| Criar e configurar repositório de contexto de sessão | Usuário | PENDENTE |
-| Depositar amostra nas pastas de calibração | Usuário | PENDENTE |
-| Executar `/integrative-review` e preencher painel | Usuário + IA | PENDENTE |
-| Gerar `criteria_config.yaml` e aprovar critérios | Usuário | PENDENTE |
-| Screening PRISMA Fase 1 (lotes via Ollama local) | IA (Ollama local) | AGUARDANDO CONFIG |
-| Download PDFs aprovados (Unpaywall, PMC, EuropePMC) | IA + Usuário | — |
-| Fichamentos (leitura integral) | IA + Revisor Humano | — |
-| Síntese e Draft do Artigo | IA + Conselho | — |

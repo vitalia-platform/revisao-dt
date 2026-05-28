@@ -1,0 +1,65 @@
+study:
+  title: "Design Thinking aplicado à Saúde Positiva: Ecossistemas de Movimento, Lazer e Sono para a Manutenção da Saúde e Prevenção de DCNTs (2010-2026)"
+  time_range: "2010-2026"
+  primary_language: "all"
+  reference_study_doi: ""
+
+paths:
+  sample_root: "amostra/"
+  sample_sources:
+    - name: "scopus"
+      path: "amostra/scopus/"
+      type: "pdf"
+    - name: "webofscience"
+      path: "amostra/webofscience/"
+      type: "csv"
+  lote_pool: "lotes/"
+  output_prisma: "saida/"
+  output_fichamentos: "fichamentos/"
+  export_root: "exportacao/"
+
+ollama:
+  base_url: "http://192.168.0.254:11434"
+  model: "llama3.2:3b"
+  embedding_model: "nomic-embed-text"
+
+processing:
+  batch_size: 1000
+
+pdf_retrieval_sources:
+  - name: "unpaywall"
+    base_url: "https://api.unpaywall.org/v2"
+    enabled: true
+  - name: "pubmed_central"
+    base_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    enabled: true
+  - name: "europepmc"
+    base_url: "https://www.ebi.ac.uk/europepmc/webservices/rest"
+    enabled: true
+  - name: "crossref"
+    base_url: "https://api.crossref.org/works"
+    enabled: true
+
+criteria:
+  high_value_domains:
+    - "Design Thinking"
+    - "Teoria da Autodeterminação"
+    - "Salutogênese"
+    - "Saúde Positiva"
+    - "Wellness"
+
+  inclusion:
+    - "Publicações entre 2010 e 2026 (C1)."
+    - "Uso do Design como método de co-criação e resolução de problemas complexos (C2)."
+    - "Cruzamento obrigatório entre Design e Comportamento/Saúde/Esporte (C3)."
+    - "Estudos que abordem dieta devem incluir intervenção conjunta de exercício físico (C4)."
+
+  exclusion:
+    - "Estudos puramente nutricionais, sem intervenção de exercício físico."
+    - "Estudos fora do recorte temporal."
+    - "Estudos sem metodologia baseada em Design (ex: metodologias estritamente clínicas sem co-design)."
+
+  weights:
+    design_methodology: 1.0
+    sdt_adherence: 0.5
+    integrated_maintenance: 0.8

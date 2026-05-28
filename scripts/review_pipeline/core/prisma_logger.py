@@ -1,4 +1,3 @@
-# scripts/review_pipeline/core/prisma_logger.py | Última Atualização: 21-05-2026 11:31:00(GMT-04:00)
 """
 prisma_logger.py — Rastreabilidade, Estatísticas em Tempo Real e JSON Sharding
 
@@ -9,37 +8,27 @@ Responsabilidades:
 """
 
 import csv
+import json
 import os
 import sys
 import time
 
-from .auditor import ReviewAuditor
-
 class PrismaLogger:
-    """Orquestrador de persistência de triagem com escrita no PRISMA_LOG.csv e delegação de auditoria."""
+    """Orquestrador de persistência de triagem com escrita no PRISMA_LOG.csv e JSON sharding."""
     
     def __init__(
         self,
         prisma_log_path: str,
-        shards_dir: str = None, # Mantido para retrocompatibilidade mas ignorado
-        log_file_path: str = "saida/auditoria/logs_execucao/execution_log.txt"
+        shards_dir: str = "saida/shards",
+        log_file_path: str = "execution_log.txt"
     ):
         self.prisma_log_path = prisma_log_path
+        self.shards_dir = shards_dir
+        self.log_file_path = log_file_path
         
-        # Garante as pastas base (output_prisma)
-        base_dir = os.path.dirname(prisma_log_path) if os.path.dirname(prisma_log_path) else "."
-        os.makedirs(base_dir, exist_ok=True)
-        
-        # Log path default usa a pasta dinâmica do auditor
-        if log_file_path == "saida/auditoria/logs_execucao/execution_log.txt":
-            self.log_file_path = os.path.join(base_dir, "auditoria", "logs_execucao", "execution_log.txt")
-        else:
-            self.log_file_path = log_file_path
-            
-        audit_base_dir = os.path.join(base_dir, "auditoria")
-        self.auditor = ReviewAuditor(base_audit_dir=audit_base_dir)
-        
-        os.makedirs(os.path.dirname(self.log_file_path), exist_ok=True)
+        # Garante as pastas
+        os.makedirs(os.path.dirname(prisma_log_path) if os.path.dirname(prisma_log_path) else ".", exist_ok=True)
+        os.makedirs(shards_dir, exist_ok=True)
         
         # Mapeia colunas canônicas
         self.fieldnames = [
@@ -103,44 +92,30 @@ class PrismaLogger:
         article_title: str,
         decision: str,
         exclusion_reason: str,
-        raw_response: str,
-        article_data: dict,
-        full_prompt: str = "",
-        model_name: str = "unknown"
+        raw_response: dict,
+        article_data: dict
     ) -> None:
         """
         Salva o resultado da triagem:
-        1. Protege contra regressão verificando o status anterior.
-        2. Atualiza a linha correspondente no PRISMA_LOG.csv
-        3. Delega a gravação do shard JSON para o ReviewAuditor
+        1. Atualiza a linha correspondente no PRISMA_LOG.csv
+        2. Salva um shard JSON robusto e auditável para este artigo
         """
-        previous_decision = None
-        try:
-            if os.path.exists(self.prisma_log_path):
-                with open(self.prisma_log_path, "r", encoding="utf-8") as f:
-                    for row in csv.DictReader(f):
-                        if row.get("Title", "").strip().lower() == article_title.strip().lower():
-                            current_status = row.get("Status", "").strip()
-                            if current_status and current_status != "Aguardando Fase 1":
-                                previous_decision = current_status
-                            break
-        except Exception:
-            pass
-
-        # 1. JSON Sharding via Auditoria Centralizada
+        # 1. JSON Sharding (Rastreabilidade Absoluta)
+        safe_filename = "".join([c if c.isalnum() else "_" for c in article_title[:80]]) + ".json"
+        shard_path = os.path.join(self.shards_dir, safe_filename)
+        
         audit_payload = {
-            "timestamp": time.strftime("%d-%m-%Y %H:%M:%S(GMT-04:00)"),
-            "model": model_name,
+            "title": article_title,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "article_metadata": article_data,
-            "full_prompt": full_prompt,
-            "raw_llm_response": raw_response,
-            "parsed_data": {"decision": decision, "reason": exclusion_reason}
+            "llm_response": raw_response
         }
         
-        if previous_decision:
-            audit_payload["previous_decision_state"] = previous_decision
-        
-        self.auditor.save_inference_shard(phase=1, item_id=article_title, payload=audit_payload)
+        try:
+            with open(shard_path, "w", encoding="utf-8") as jf:
+                json.dump(audit_payload, jf, indent=2, ensure_ascii=False)
+        except Exception as e:
+            self.write_execution_log(f"Erro ao salvar shard para '{article_title}': {e}")
             
         # 2. Atualização atômica do CSV
         self.update_csv_row(article_title, decision, exclusion_reason)
@@ -170,7 +145,7 @@ class PrismaLogger:
 
     def write_execution_log(self, message: str) -> None:
         """Grava uma mensagem com timestamp no execution_log.txt."""
-        timestamp = time.strftime("%d-%m-%Y %H:%M:%S(GMT-04:00)")
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         try:
             with open(self.log_file_path, "a", encoding="utf-8") as f:
                 f.write(f"[{timestamp}] {message}\n")
