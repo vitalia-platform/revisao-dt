@@ -1,0 +1,3 @@
+"ID_Artigo","Autores","Titulo","Ano","Fase_PRISMA","Decisao_IA","Criterio_Inclusao_Exclusao","Justificativa_Analitica_IA"
+"Exemplo: WOS:0001","Silva et al.","Impact of Gamification on Rehabilitation","2024","Fase 1 (Titulo/Resumo)","INCLUIR","Gamification + Rehab","O artigo avalia o engajamento com games em fisioterapia, totalmente alinhado com a pergunta norteadora."
+"Exemplo: WOS:0002","Smith et al.","Dietary apps for children","2021","Fase 1 (Titulo/Resumo)","EXCLUIR","Foco Exclusivo Nutricao","Artigo excluído pois aborda intervenção exclusivamente nutricional (dietary app), sem componente obrigatório de exercício físico ou reabilitação."

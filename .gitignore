@@ -1,0 +1,4 @@
+
+# Ignorar contexto de sessão da IA (repósitorio aninhado isolado)
+.agent/session/
+.agent/session/*

@@ -1,0 +1,86 @@
+# Template de Configuração: criteria_config.yaml
+# Gerado pelo workflow /integrative-review — NÃO EDITE MANUALMENTE.
+# Para regenerar, rode novamente o workflow e aprove o painel review_setup.md.
+#
+# REGRA: Nenhum script ou agente deste projeto assume valores padrão.
+#        Todos lêem exclusivamente deste arquivo.
+
+# ──────────────────────────────────────────────
+# IDENTIDADE DO ESTUDO
+# ──────────────────────────────────────────────
+study:
+  title: ""                          # Título provisório da revisão
+  time_range: ""                     # Ex: "2018-2026"
+  primary_language: ""               # Ex: "en,pt"
+  reference_study_doi: ""            # DOI do estudo de referência (se houver)
+
+# ──────────────────────────────────────────────
+# CAMINHOS DO AMBIENTE (todos relativos à raiz do projeto)
+# ──────────────────────────────────────────────
+paths:
+  sample_root: ""                    # Pasta raiz da amostra de calibração. Ex: "amostra/"
+  sample_sources:                    # Sub-pastas por origem (detectadas automaticamente se vazio)
+    - name: ""                       # Ex: "scopus"
+      path: ""                       # Ex: "amostra/scopus/"
+      type: ""                       # "pdf" | "csv" | "mixed"
+    - name: ""                       # Ex: "webofscience"
+      path: ""                       # Ex: "amostra/webofscience/"
+      type: ""
+  lote_pool: ""                      # Pasta com os CSVs em lote. Ex: "lotes/"
+  output_prisma: ""                  # Pasta de saída para o log PRISMA. Ex: "saida/"
+  output_fichamentos: ""             # Pasta para os fichamentos. Ex: "fichamentos/"
+
+# ──────────────────────────────────────────────
+# CONFIGURAÇÃO DO SERVIDOR LOCAL DE IA
+# ──────────────────────────────────────────────
+ollama:
+  base_url: "http://192.168.0.254:11434" # IP do servidor local
+  model: "llama3.2:3b"                   # Modelo otimizado localmente
+  embedding_model: "nomic-embed-text"    # Modelo de embeddings
+
+# ──────────────────────────────────────────────
+# CONFIGURAÇÃO DO PROCESSAMENTO EM LOTE
+# ──────────────────────────────────────────────
+processing:
+  batch_size: 1000                   # Artigos por chamada ao Ollama
+
+# ──────────────────────────────────────────────
+# FONTES PARA RECUPERAÇÃO AUTOMÁTICA DE PDF (Fase 2)
+# Loop executado em ordem — para na primeira fonte que retornar o PDF.
+# ──────────────────────────────────────────────
+pdf_retrieval_sources:
+  - name: "unpaywall"
+    base_url: "https://api.unpaywall.org/v2"
+    enabled: true
+  - name: "pubmed_central"
+    base_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    enabled: true
+  - name: "europepmc"
+    base_url: "https://www.ebi.ac.uk/europepmc/webservices/rest"
+    enabled: true
+  - name: "crossref"
+    base_url: "https://api.crossref.org/works"
+    enabled: true
+
+# ──────────────────────────────────────────────
+# CRITÉRIOS DE ELEGIBILIDADE
+# Definidos e aprovados pelo pesquisador após análise da amostra.
+# ──────────────────────────────────────────────
+criteria:
+  # Domínios de alto valor — artigos nestes temas recebem tag TRENDING_TOPIC no PRISMA log.
+  high_value_domains: []
+    # Ex:
+    # - "physical education in schools"
+    # - "gamification for exercise adherence"
+
+  inclusion: []
+    # Ex:
+    # - "Study must involve digital technology applied to physical exercise with human subjects."
+    # - "Technology applied to physical education professionals or school PE context."
+
+  exclusion: []
+    # Ex:
+    # - "Study focuses exclusively on sports business, marketing, or club management."
+    # - "Animal subjects (in vivo / in vitro)."
+    # - "Traditional media (TV, radio) without interactive digital component."
+    # - "Study protocol without published results."
