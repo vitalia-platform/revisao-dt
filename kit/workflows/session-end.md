@@ -3,6 +3,7 @@ description: >
   Encerra a sessão de trabalho: documenta o que foi feito, atualiza o contexto
   do projeto e prepara o próximo passo para a próxima sessão.
 ---
+<!-- kit/workflows/session-end.md | Atualizado em: 01-06-2026 10:27:25(GMT-04:00) -->
 
 # /session-end — Encerramento de Sessão
 
@@ -25,11 +26,17 @@ Se não for óbvio pelo histórico da sessão, perguntar:
 "O que foi concluído nesta sessão?"
 ```
 
-### Passo 2: Verificar Aprendizados
+### Passo 2: Verificar Aprendizados e Oportunidades de Skill
 
 ```
 "Houve algum padrão, descoberta ou decisão que devo registrar?"
 → Se sim: acionar knowledge-curator ou adr-writing
+
+"Durante esta sessão, você realizou algum processo manual, repetitivo ou complexo
+que poderia ser automatizado como uma skill de agente?"
+→ Se sim: sugerir "/skill-evaluation" para avaliar o candidato antes de criar.
+   (Ex: "Percebi que você calibrou manualmente 3 queries de API. Isso poderia
+   ser uma skill. Quer avaliar agora com /skill-evaluation?")
 → Se não: prosseguir
 ```
 

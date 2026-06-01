@@ -1,7 +1,8 @@
+<!-- inicio/00_SUMARIO_EXECUTIVO.md | Atualizado em: 01-06-2026 10:19:28(GMT-04:00) -->
 # Sumário Executivo — Revisão Integrativa da Literatura
 
-**Versão:** 1.0  
-**Data:** 2026-05-28  
+**Versão:** 2.0  
+**Data:** 2026-06-01  
 **Status:** AGUARDANDO AMOSTRA DE CALIBRAÇÃO
 
 ---
@@ -11,8 +12,9 @@
 | Campo | Conteúdo |
 |---|---|
 | **Título provisório** | Design Thinking aplicado à Saúde Positiva: Ecossistemas de Movimento, Lazer e Sono para a Manutenção da Saúde e Prevenção de DCNTs (2010-2026) |
-| **Tipo de estudo** | Revisão Integrativa da Literatura |
-| **Método** | Mendes, Silveira e Galvão (2008) — 6 etapas |
+| **Tipo de estudo** | Revisão Integrativa da Literatura com Síntese Orientada a Design Science Research (DSR) |
+| **Método de Análise** | Mendes, Silveira e Galvão (2008) — 6 etapas + Síntese DSR de vom Brocke et al. (2015) |
+| **Reporting Standard** | PRISMA 2020 / PRISMA-ScR (Transparência e Rastreabilidade da Triagem) |
 | **Período de busca** | 2010-2026 |
 | **Bases de dados** | Scopus, Web of Science, PubMed (Recomendada), SPORTDiscus (Recomendada) |
 | **Idioma primário** | Todos |
@@ -76,12 +78,15 @@ Artigos nos domínios de alto valor receberão classificação `TRENDING_TOPIC` 
 
 ---
 
-## Estado Atual do Corpus Documental (PRISMA)
+## Estado Atual do Corpus Documental (PRISMA como Reporting Standard)
 
-| Etapa PRISMA | Quantidade |
+> [!NOTE]
+> O fluxograma PRISMA é utilizado neste projeto **exclusivamente como ferramenta de transparência e rastreabilidade** da triagem (Reporting Standard), conforme PRISMA 2020 e PRISMA-ScR. A metodologia de **análise e síntese** segue a Revisão Integrativa (Mendes et al.) com orientação DSR (vom Brocke et al.).
+
+| Etapa PRISMA (Reporting) | Quantidade |
 |---|---|
-| Arquivo Bruto Exportado (WoS/Scopus) | [A depositar] |
-| Amostra de Calibração (Fase 0) | [A depositar na pasta de amostra] |
+| Arquivo Bruto Exportado (API/WoS/Scopus) | [A depositar] |
+| Amostra de Calibração (Fase 0 — HITL) | [A coletar via PubMed/EuropePMC/bioRxiv] |
 | Após Screening Fase 1 (título + resumo) | — |
 | Após leitura na íntegra (Fase 2) | — |
 | **Artigos incluídos na revisão** | **0 (Estaca Zero)** |

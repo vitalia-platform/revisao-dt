@@ -1,3 +1,4 @@
+<!-- README.md | Atualizado em: 01-06-2026 09:04:34(GMT-04:00) -->
 # Revisão Integrativa + Transposição Pedagógica (Design Thinking)
 
 > **Repositório Template (revisao-dt).** Este é o ponto de partida para projetos de Revisão Integrativa focados em Esporte, Saúde, Lazer e Transposição Pedagógica usando Design Science Research (DSR). Clone este repositório e invoque `/integrative-review` para instanciar a sua pesquisa específica.
@@ -191,7 +192,22 @@ Draft → [Colegiado: N reuniões de revisão] → Artigo Final
 
 ---
 
-## 6. Sincronização Entre Máquinas
+## 6. Transposição Pedagógica e Desenvolvimento (SDD)
+
+O projeto integra o framework de **Spec-Driven Development (SDD)** para a criação de materiais didáticos e software derivados da revisão. Os workflows abaixo guiam o processo desde a concepção até a implementação:
+
+| Workflow | Finalidade |
+|---|---|
+| `/blueprint-specify` | Inicia a Transposição Pedagógica. Coleta contexto e gera a especificação educacional. |
+| `/blueprint-plan` | Lê a Especificação Pedagógica e detalha a estrutura da aula e metodologias ativas. |
+| `/spec-specify` | Traduz o pedido técnico em requisitos formais e histórias de usuário (`.spec.md`). |
+| `/spec-plan` | Lê um `.spec.md` aprovado e propõe arquitetura técnica e decisões de engenharia. |
+| `/spec-tasks` | Converte o plano técnico em uma checklist acionável (`task.md`). |
+| `/spec-implement` | Executa a checklist de tarefas aprovada de forma iterativa e testável. |
+
+---
+
+## 7. Sincronização Entre Máquinas
 
 ### Ao encerrar a sessão:
 
@@ -215,7 +231,7 @@ O sistema usa um Guardião de Concorrência (`.sync_lock`). Se duas máquinas te
 
 ---
 
-## 7. Mantendo o Kit de Agentes Atualizado
+## 8. Mantendo o Kit de Agentes Atualizado
 
 ```bash
 cd kit && git pull origin main && cd ..
@@ -227,7 +243,7 @@ git push origin main
 
 ---
 
-## 8. Scripts do Kit — Referência
+## 9. Scripts do Kit — Referência
 
 Todos os scripts estão em `kit/scripts/` e acessíveis via `bash .agent/scripts/` (symlink).
 
@@ -263,7 +279,7 @@ bash kit/scripts/install.sh
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### Contexto não sincroniza
 
@@ -301,7 +317,7 @@ Verifique se o servidor Docker está rodando e se o endereço no `criteria_confi
 
 ---
 
-## 9. Estrutura de Branches
+## 11. Estrutura de Branches
 
 | Branch | Propósito |
 |---|---|
@@ -311,7 +327,7 @@ Verifique se o servidor Docker está rodando e se o endereço no `criteria_confi
 
 ---
 
-## 10. Referências
+## 12. Referências
 
 | Documento | Localização | Propósito |
 |---|---|---|

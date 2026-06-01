@@ -1,4 +1,5 @@
 # Template de Configuração: criteria_config.yaml
+# inicio/criteria_config.template.yaml | Atualizado em: 01-06-2026 10:24:30(GMT-04:00)
 # Gerado pelo workflow /integrative-review — NÃO EDITE MANUALMENTE.
 # Para regenerar, rode novamente o workflow e aprove o painel review_setup.md.
 #
@@ -13,6 +14,18 @@ study:
   time_range: ""                     # Ex: "2018-2026"
   primary_language: ""               # Ex: "en,pt"
   reference_study_doi: ""            # DOI do estudo de referência (se houver)
+  query_string: ""                   # String de busca técnica (PCC/PICO) — usada nas calls de API
+
+# ──────────────────────────────────────────────
+# METODOLOGIA (Pivot 01-06-2026)
+# ──────────────────────────────────────────────
+methodology:
+  analysis: "Integrative Review (Mendes, Silveira e Galvão, 2008) + DSR Synthesis (vom Brocke et al., 2015)"
+  reporting_standard: "PRISMA 2020 / PRISMA-ScR"
+  # IMPORTANTE: O PRISMA é usado neste projeto exclusivamente como Reporting Standard
+  # (transparência da triagem). A síntese e análise seguem o método integrativo + DSR.
+  accept_theoretical_studies: true   # Permite artigos teóricos/qualitativos com mesmo peso que empíricos
+  accept_gray_literature: true       # Permite preprints via biorxiv/EuropePMC
 
 # ──────────────────────────────────────────────
 # CAMINHOS DO AMBIENTE (todos relativos à raiz do projeto)
@@ -26,9 +39,27 @@ paths:
     - name: ""                       # Ex: "webofscience"
       path: ""                       # Ex: "amostra/webofscience/"
       type: ""
+    - name: "biorxiv"                # Literatura cinzenta (preprints)
+      path: ""                       # Ex: "amostra/biorxiv/"
+      type: "json"                   # Payloads JSON retornados pela API
   lote_pool: ""                      # Pasta com os CSVs em lote. Ex: "lotes/"
   output_prisma: ""                  # Pasta de saída para o log PRISMA. Ex: "saida/"
   output_fichamentos: ""             # Pasta para os fichamentos. Ex: "fichamentos/"
+  audit_payloads: ""                 # OBRIGATÓRIO: Pasta para logs de auditoria PRISMA-S/trAIce. Ex: "saida/audit/"
+
+# ──────────────────────────────────────────────
+# AUDITORIA DE BUSCA (PRISMA-S / PRISMA-trAIce)
+# Garante a rastreabilidade e replicabilidade exigida por revisores acadêmicos.
+# ──────────────────────────────────────────────
+audit_logging:
+  enabled: true                      # NUNCA desabilitar em produção
+  # Para cada chamada de API, o sistema grava automaticamente em paths.audit_payloads:
+  # 1. LOG_BUSCA_<base>_<timestamp>.csv  → data, endpoint, query, hits totais
+  # 2. PAYLOAD_<base>_<timestamp>.json   → payload JSON bruto completo da API
+  # Estes arquivos são a evidência incontestável para revisão por pares (PRISMA-S item 7).
+  save_csv_log: true
+  save_json_payload: true            # Obrigatório — não alterar
+  timestamp_format: "ISO8601"        # Ex: 2026-06-01T10:24:30-04:00
 
 # ──────────────────────────────────────────────
 # CONFIGURAÇÃO DO SERVIDOR LOCAL DE IA
@@ -45,38 +76,56 @@ processing:
   batch_size: 1000                   # Artigos por chamada ao Ollama
 
 # ──────────────────────────────────────────────
-# FONTES PARA RECUPERAÇÃO AUTOMÁTICA DE PDF (Fase 2)
-# Loop executado em ordem — para na primeira fonte que retornar o PDF.
+# FONTES PARA RECUPERAÇÃO AUTOMÁTICA DE PDF (Passo 3)
+# Loop executado em ordem DE ACORDO COM A ORIGEM DO ARTIGO — para na primeira fonte que retornar o PDF.
 # ──────────────────────────────────────────────
 pdf_retrieval_sources:
-  - name: "unpaywall"
-    base_url: "https://api.unpaywall.org/v2"
-    enabled: true
   - name: "pubmed_central"
     base_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     enabled: true
+    priority_for_origins: ["pubmed", "medline"]   # Primeira opção para artigos dessas origens
   - name: "europepmc"
     base_url: "https://www.ebi.ac.uk/europepmc/webservices/rest"
     enabled: true
+    priority_for_origins: ["europepmc", "preprint"]
+  - name: "biorxiv"
+    base_url: "https://api.biorxiv.org"
+    enabled: true
+    priority_for_origins: ["biorxiv", "medrxiv"]  # Literatura cinzenta
+  - name: "unpaywall"
+    base_url: "https://api.unpaywall.org/v2"
+    enabled: true
+    priority_for_origins: []                       # Fallback universal para todas as origens
   - name: "crossref"
     base_url: "https://api.crossref.org/works"
     enabled: true
+    priority_for_origins: []                       # Fallback final
 
 # ──────────────────────────────────────────────
 # CRITÉRIOS DE ELEGIBILIDADE
-# Definidos e aprovados pelo pesquisador após análise da amostra.
+# Definidos e aprovados pelo pesquisador após análise HITL da amostra.
 # ──────────────────────────────────────────────
 criteria:
   # Domínios de alto valor — artigos nestes temas recebem tag TRENDING_TOPIC no PRISMA log.
   high_value_domains: []
     # Ex:
-    # - "physical education in schools"
-    # - "gamification for exercise adherence"
+    # - "Design Thinking"
+    # - "Self-Determination Theory"
+    # - "Positive Health"
+    # - "Gamification for exercise adherence"
+
+  # Kernel Theories de interesse (buscadas ativamente no Passo 4 — Fichamento DSR)
+  kernel_theories_of_interest: []
+    # Ex:
+    # - "Self-Determination Theory (Deci & Ryan)"
+    # - "Salutogenesis (Antonovsky)"
+    # - "Design Thinking (Brown / IDEO)"
 
   inclusion: []
     # Ex:
-    # - "Study must involve digital technology applied to physical exercise with human subjects."
-    # - "Technology applied to physical education professionals or school PE context."
+    # - "Study must involve Design methodology applied to health, sport or leisure contexts."
+    # - "Theoretical, qualitative, quantitative and mixed-methods studies accepted."
+    # - "Gray literature (preprints) accepted if peer-reviewed preprint platform (bioRxiv/medRxiv)."
 
   exclusion: []
     # Ex:
