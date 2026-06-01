@@ -29,6 +29,14 @@ cd "${SESSION_DIR}"
 
 echo "🔄 [1/4] Puxando atualizações da Nuvem (prioridade à nuvem)..."
 HAS_REMOTE=$(git ls-remote --heads origin main 2>/dev/null | wc -l | tr -d ' ')
+
+# Salva mudanças não "comitadas" antes do rebase
+STASH_NEEDED=0
+if ! git diff-index --quiet HEAD --; then
+    git stash push -m "temp_session_stash"
+    STASH_NEEDED=1
+fi
+
 if [ "${HAS_REMOTE}" -gt "0" ]; then
     git pull origin main --rebase || {
         echo "❌ Conflito de rebase detectado."
@@ -37,6 +45,11 @@ if [ "${HAS_REMOTE}" -gt "0" ]; then
     }
 else
     echo "   ℹ️  Remoto sem histórico (repositório vazio). Pulando pull."
+fi
+
+# Restaura as mudanças
+if [ "$STASH_NEEDED" -eq 1 ]; then
+    git stash pop || echo "⚠️  Aviso: conflitos ao restaurar stash local. O script de consolidação tentará resolver."
 fi
 
 echo "🧩 [2/4] Consolidando contextos de todas as máquinas..."
