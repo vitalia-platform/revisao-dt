@@ -1,13 +1,12 @@
 ---
 description: >
-  Avalia, cuida e cria novas skills para o Kit de Agentes.
-  Pipeline HITL completo: define escopo, método de invocação,
-  trânsito de dados e risco de viés antes de acionar o workflow-skill-creator.
-  Pode ser invocado diretamente pelo usuário ou sugerido pelo /session-end.
+  Analisa ativamente o histórico da sessão (transcript) para identificar gargalos,
+  erros e repetições. Propõe proativamente novas skills e melhorias estruturais (rules/agentes)
+  preenchendo um rascunho completo do pipeline HITL para aprovação do usuário.
 ---
-<!-- kit/workflows/skill-evaluation.md | Atualizado em: 01-06-2026 10:26:21(GMT-04:00) -->
+<!-- kit/workflows/skill-evaluation.md | Atualizado em: 01-06-2026 11:23:31(GMT-04:00) -->
 
-# /skill-evaluation — Curadoria e Criação de Skills
+# /skill-evaluation — Curadoria Proativa e Avaliação de Skills
 
 $ARGUMENTS
 
@@ -15,132 +14,83 @@ $ARGUMENTS
 
 ## Propósito
 
-Garantir que nenhuma skill seja criada de forma impulsiva, sem critério de rigor e sem considerar o impacto no pipeline científico do projeto. Este workflow é a **barreira de qualidade obrigatória** entre uma ideia de automação e a sua materialização como skill.
-
-> [!IMPORTANT]
-> Este workflow **não cria código por conta própria**. Ele conduz o pesquisador por um conjunto de perguntas estruturadas (HITL) e, somente após aprovação explícita de cada critério, aciona o `workflow-skill-creator`.
-
----
-
-## Quando Usar
-
-- Diretamente via chat: `/skill-evaluation` sempre que um processo manual repetitivo foi descoberto.
-- Sugerido automaticamente pelo `/session-end` quando a sessão identificou padrões candidatos a automação.
-- **Nunca chamar o `workflow-skill-creator` diretamente** sem passar por este workflow.
+Em vez de aguardar passivamente uma ideia do usuário, este workflow atua como um **analista de processos**. Ele vasculha os logs da sessão (incluindo falhas, correções e comandos repetitivos) para sugerir proativamente:
+1. **Melhorias Estruturais:** Ajustes em regras, prompts de agentes ou configurações para evitar que erros recentes se repitam.
+2. **Novas Skills:** Automações para eliminar atrito e padronizar fluxos.
 
 ---
 
 ## Comportamento
 
-### Fase 1: Inventário (Silencioso)
+### Fase 1: Análise Ativa de Log (Silencioso)
 
 ```
-1. Ler CONTEXT.md e SESSION_HISTORY.md para identificar processos repetidos na sessão.
-2. Se $ARGUMENTS contiver uma descrição de skill candidata, usá-la como ponto de partida.
-3. Se invocado pelo /session-end, apresentar a lista de candidatas detectadas para o usuário escolher qual avaliar primeiro.
+1. O agente deve localizar e ler o arquivo `transcript.jsonl` (ou logs do terminal) da conversa atual.
+2. Analisar as iterações focando em:
+   - Comandos de terminal que falharam repetidamente (erros de sintaxe, paths, APIs).
+   - Fluxos onde o agente precisou de múltiplas correções do humano para acertar.
+   - Processos repetitivos (ex: gerar 3 CSVs de forma sequencial com as mesmas lógicas).
+3. Ler o `CONTEXT.md` para alinhar as descobertas ao estado atual do projeto.
 ```
 
-### Fase 2: Entrevista de Design (HITL — Perguntas Obrigatórias)
+### Fase 2: Apresentação do Diagnóstico (Cardápio)
 
-O agente conduz uma entrevista estruturada. Aguardar resposta do usuário a cada pergunta antes de prosseguir.
-
----
-
-**Pergunta 1 — Descrição:**
-> "Descreva com precisão o processo que você quer automatizar. Qual é o input? Qual é o output esperado?"
-
----
-
-**Pergunta 2 — Escopo de Atuação:**
-> "Esta skill deve funcionar para:
-> (A) Apenas este projeto (revisão específica) → salvar em `.agent/skills/`
-> (B) Todas as revisões futuras (global para todos os projetos Vitalia na sua máquina) → integrar ao `kit/skills/`"
-
----
-
-**Pergunta 3 — Método de Invocação:**
-> "Como esta skill será invocada?
-> (A) Diretamente pelo usuário via chat (ex: `/minha-skill argumento`)
-> (B) Chamada por outro agente ou workflow (ex: como sub-rotina do Passo 0 de calibração)
-> (C) Ambas"
-
----
-
-**Pergunta 4 — Trânsito de Dados:**
-> "Como os dados entrarão e sairão desta skill?
-> (A) Texto livre (input do usuário e output em markdown)
-> (B) JSON estruturado (para integração com scripts Python e outros agentes)
-> (C) Arquivos (leitura/escrita de CSVs, PDFs ou JSONs no disco)
-> (D) Combinação — especifique"
-
----
-
-**Pergunta 5 — Auditoria e Rastreabilidade (Constituição do Arquiteto — P4 e P10):**
-> "Esta skill produz ou consome dados de pesquisa científica?
-> Se sim: como garantiremos que ela gere um log de auditoria compatível com as diretrizes PRISMA-S/trAIce do projeto?"
-
----
-
-**Pergunta 6 — Análise de Viés (Risco Científico):**
-> "Esta automação pode introduzir algum viés no pipeline científico?
-> Ex: critérios de inclusão/exclusão hardcoded, ordenação tendenciosa de resultados, descarte silencioso de evidências.
-> Como mitigamos isso?"
-
----
-
-### Fase 3: Decisão e Rota
-
-Com base nas respostas, o agente apresenta:
+O agente apresenta um relatório ordenado estritamente por ordem de importância e impacto (sem limites de quantidade):
 
 ```markdown
-## 📋 Diagnóstico da Skill Candidata
+## 🔍 Diagnóstico de Processos da Sessão
 
-**Nome proposto:** [nome-da-skill]
-**Escopo:** [Local / Global]
-**Invocação:** [direta / sub-rotina / ambas]
-**Formato de dados:** [texto / JSON / arquivos]
-**Auditoria:** [sim — como / não aplicável — justificativa]
-**Risco de viés:** [baixo / médio / alto — mitigação proposta]
+### 🛠️ Melhorias Estruturais Recomendadas
+*Ajustes para evitar repetição de falhas operacionais.*
+1. **[Nome da Melhoria]**: [O que aconteceu no log] → [O que alterar (ex: agent_rules.md, template_x.md)]
+2. [Outra melhoria...]
 
-**Decisão recomendada:**
-[ ] ✅ Criar skill — [caminho de destino]
-[ ] ⏸️ Adiar — registrar no CONTEXT.md para revisão futura
-[ ] ❌ Descartar — [justificativa]
-
-Confirma? (S / N / Ajustar)
+### ⚡ Skills Candidatas Detectadas
+*Automações para reduzir atrito.*
+1. **[Nome da Skill]**: [Qual problema resolve e como funcionará]
+2. [Outra skill...]
 ```
 
-### Fase 4: Criação (Condicional)
+O agente pausa e pergunta: *"Deseja aplicar as melhorias estruturais agora e/ou avançar para a avaliação detalhada de alguma das skills candidatas?"*
+
+### Fase 3: Rascunho HITL Pré-Preenchido (Para a Skill Escolhida)
+
+Se o usuário escolher avançar com a criação de uma skill, o agente **não fará as perguntas em branco**. Ele apresentará o pipeline HITL **já preenchido** com suas melhores deduções lógicas estruturais, pedindo apenas aprovação ou edições.
+
+```markdown
+## 📋 Proposta de Design: [Nome da Skill]
+
+Por favor, revise o rascunho abaixo. Confirme (S) ou indique o que precisa ser ajustado para que eu possa gerar o arquivo.
+
+**1. Descrição:** [Preenchido pelo agente baseado na análise do log. Qual o input e output?]
+**2. Escopo:** [Local (.agent/skills) ou Global (kit/skills) — sugerido com justificativa]
+**3. Método de Invocação:** [Como será chamada (ex: slash command, sub-rotina)]
+**4. Trânsito de Dados:** [Formato de input/output — JSON / Arquivos / Text]
+**5. Auditoria e Rastreabilidade:** [Como gerará logs compatíveis com PRISMA-S, se aplicável]
+**6. Mitigação de Viés:** [Quais riscos a automação traz e como o código os evitará]
+
+**Decisão:**
+Aguardo sua revisão. (Aprovar / Editar tópico X / Descartar)
+```
+
+### Fase 4: Execução e Atualização de Contexto
 
 ```
-Se o usuário aprovar:
-→ Acionar `workflow-skill-creator` com os parâmetros definidos na entrevista.
-→ O `workflow-skill-creator` gera o arquivo SKILL.md com:
-   - Frontmatter YAML (name, description, scope, invocation, data_format)
-   - Instruções detalhadas de uso
-   - Exemplos de input/output
-→ Salvar no caminho definido (`.agent/skills/` ou `kit/skills/`).
-→ Atualizar CONTEXT.md com a nova skill criada.
-→ Registrar no SESSION_HISTORY.md.
-```
+Se aprovado sem ajustes:
+→ O agente aciona o `workflow-skill-creator` passando os parâmetros literais da Fase 3.
+→ Salva no caminho definido.
+→ Atualiza o `CONTEXT.md` e o `SESSION_HISTORY.md` registrando a nova ferramenta.
 
----
-
-## Exemplos de Uso
-
-```
-/skill-evaluation
-/skill-evaluation extração de Kernel Theories de PDFs de fichamento
-/skill-evaluation geração automática de log de busca PRISMA-S
+Se houver ajustes:
+→ O agente refina a proposta imediatamente e pede nova validação antes de criar o código.
 ```
 
 ---
 
 ## Saídas Possíveis
 
-| Resultado | Ação |
+| Resultado | Ação do Agente |
 |---|---|
-| Skill criada (local) | `.agent/skills/<nome-skill>/SKILL.md` |
-| Skill criada (global) | `kit/skills/<nome-skill>/SKILL.md` |
-| Skill adiada | Anotada em `CONTEXT.md` — campo "Skills Pendentes de Avaliação" |
-| Skill descartada | Justificativa registrada no `SESSION_HISTORY.md` |
+| Melhoria Estrutural Aprovada | Modifica diretamente os arquivos relevantes (`.md` ou `.yaml`) com `replace_file_content`. |
+| Skill Aprovada (Local) | Aciona `workflow-skill-creator` gerando `.agent/skills/<nome>/SKILL.md` |
+| Skill Aprovada (Global) | Aciona `workflow-skill-creator` gerando `kit/skills/<nome>/SKILL.md` |
