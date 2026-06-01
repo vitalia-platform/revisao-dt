@@ -14,10 +14,9 @@ study:
   primary_language: "all"
   reference_study_doi: ""
   query_string: >
-    ("Design Thinking" OR "Human-Centered Design" OR "Service Design" OR "Prototyping")
-    AND ("Physical Activity" OR "Sport" OR "Leisure" OR "Sleep Hygiene" OR "Rest")
-    AND ("Self-Determination Theory" OR "Intrinsic Motivation" OR "Autonomy")
-    AND ("Positive Health" OR "Well-being" OR "NCD Prevention")
+    ("Design Thinking" OR "Human-Centered Design" OR "Service Design" OR "User-Centered Design" OR "Co-design" OR "Participatory Design" OR "Co-creation")
+    AND ("Physical Activity" OR "Sport" OR "Exercise" OR "Leisure" OR "Exergame" OR "Active Lifestyle" OR "Fitness")
+    AND 2010:2026[dp]
 
 # ──────────────────────────────────────────────
 # METODOLOGIA (Pivot 01-06-2026)
