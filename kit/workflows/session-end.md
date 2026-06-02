@@ -1,11 +1,11 @@
 ---
 description: >
-  Encerra a sessão de trabalho em 3 fases estanques: avaliação proativa de melhorias,
-  commit seguro do repositório raiz e sincronização do repositório de contexto.
-  O commit do contexto é sempre o último passo.
+  Encerra a sessão de trabalho em 4 fases estanques: avaliação proativa de melhorias,
+  reflexão HITL da sessão, commit do repositório raiz e gravação do shard local.
+  NÃO sincroniza o repositório de contexto com a nuvem — isso é responsabilidade do /session-consolidate.
 ---
 
-<!-- kit/workflows/session-end.md | Atualizado em: 01-06-2026 14:30:00(GMT-04:00) -->
+<!-- kit/workflows/session-end.md | Atualizado em: 01-06-2026 21:26:30(GMT-04:00) -->
 
 # /session-end — Encerramento de Sessão (Dual-Git)
 
@@ -15,13 +15,14 @@ $ARGUMENTS
 
 ## Propósito
 
-Garante que nenhum aprendizado ou progresso se perca entre sessões, respeitando a arquitetura de dois repositórios Git independentes:
+**Responsabilidade única:** Reflexão, registro e commit local. Este workflow **NÃO faz push** do repositório de contexto.
 
+Respeita a arquitetura de dois repositórios Git independentes:
 - **Repositório Raiz** (`revisao-dt`): código, dados de auditoria, scripts, skills.
-- **Repositório de Contexto** (`.agent/session/`): estado da sessão, histórico, CONTEXT.md.
+- **Repositório de Contexto** (`.agent/session/`): estado da sessão, shards, histórico.
 
 > [!IMPORTANT]
-> O commit do Repositório de Contexto é **sempre o último passo**. A ordem das fases é obrigatória.
+> Este workflow termina com o shard salvo **localmente**. Para sincronizar com a nuvem e ver o dashboard de máquinas, rode `/session-consolidate` após o encerramento.
 
 ---
 
@@ -40,7 +41,7 @@ Executar imediatamente o diagnóstico proativo do /skill-evaluation:
 Se o usuário aprovar alguma melhoria ou skill:
 → Escrever os arquivos gerados no destino correto:
   - Escopo Local  → .agent/skills/<nome>/SKILL.md
-  - Escopo Global → kit/skills/<nome>/SKILL.md (futuramente separado do projeto)
+  - Escopo Global → kit/skills/<nome>/SKILL.md
 → Aguardar conclusão antes de avançar para a Fase 2.
 
 Se nenhuma melhoria for aprovada:
@@ -49,19 +50,52 @@ Se nenhuma melhoria for aprovada:
 
 ---
 
-### 📦 Fase 2 — Conclusão do Diretório Raiz
+### 🪞 Fase 2 — Reflexão da Sessão (HITL)
+
+Esta é a fase central do encerramento. A IA para, pensa e pergunta.
 
 ```
-1. Consolidar o progresso da sessão em 2-3 linhas (input do usuário ou inferência do log).
+1. Ler o transcript.jsonl da conversa atual para extrair o contexto do trabalho realizado.
 
-2. [SEGURANÇA OBRIGATÓRIA] Executar o script de sanitização:
+2. Se existir um task.md ativo na conversa, lê-lo para inferir o estado das etapas (ex: 3/5).
+
+3. Com base na leitura, a IA propõe automaticamente o seguinte resumo ao usuário:
+
+   ┌──────────────────────────────────────────────────────────────────┐
+   │ 📋 Resumo da sessão — Identificado automaticamente               │
+   │                                                                  │
+   │ Tarefa:  [Nome inferido do foco central do dia]                  │
+   │ Etapas:  [X/Y do task.md, ou "N/A" se não houver task]          │
+   │ Status:  [Iniciando | Executando | Aguardando | Concluído]       │
+   │                                                                  │
+   │ Atividades desta sessão:                                         │
+   │   • [Atividade 1 identificada no transcript]                     │
+   │   • [Atividade 2 identificada no transcript]                     │
+   │   • ...                                                          │
+   │                                                                  │
+   │ Próximo Passo (P0):                                              │
+   │   [Item mais prioritário para a próxima sessão]                  │
+   └──────────────────────────────────────────────────────────────────┘
+
+   ✅ Aprova este resumo? Ajuste o que desejar antes de salvar.
+
+4. AGUARDAR aprovação ou ajustes do usuário antes de prosseguir.
+   A IA não escreve nada no disco até receber confirmação.
+```
+
+---
+
+### 📦 Fase 3 — Commit do Repositório Raiz
+
+```
+1. [SEGURANÇA OBRIGATÓRIA] Executar o script de sanitização:
    $ bash scripts/sanitize_for_cloud.sh
    → Se o script falhar (IP exposto, .curadoria sem .gitignore): PARAR e alertar o usuário.
    → Se o script passar: autorização concedida para commit autônomo.
 
-3. Fazer o commit e push do Repositório Raiz:
+2. Fazer o commit e push do Repositório Raiz:
    $ git add .
-   $ git commit -m "chore(session-end): [resumo do progresso]"
+   $ git commit -m "chore(session-end): [resumo aprovado na Fase 2]"
    $ git push
    NOTA: A pasta .agent/session/ é ignorada pelo .gitignore da raiz.
          Ela NÃO será incluída neste commit.
@@ -69,56 +103,48 @@ Se nenhuma melhoria for aprovada:
 
 ---
 
-### ☁️ Fase 3 — Sincronização do Repositório de Contexto (O Último Passo)
+### 🗂️ Fase 4 — Gravação do Shard Local
+
+Com o resumo aprovado pelo usuário na Fase 2:
 
 ```
-1. Escrever o resumo da sessão no CONTEXT.md local:
-   - Estado Atual (O que foi concluído)
-   - Constraints Ativos (se mudou)
-   - Próximo passo (P0)
+1. Obter o ID da máquina rodando:
+   $ python3 .agent/scripts/lib_machine.py --get-id
 
-2. Annexar o bloco de encerramento ao SESSION_HISTORY.md:
+2. Sobrescrever o shard da máquina local usando o template obrigatório:
+   Arquivo: .agent/session/shards/[MACHINE_ID].md
 
-   ## ✅ Sessão Encerrada em [data/hora]
-   **Progresso**: [resumo de 3-5 linhas]
-   **Próxima sessão começa em**: [P0]
+   Template:
+   ─────────────────────────────────────────────────
+   # Shard: [Nome da máquina] ([MACHINE_ID])
+   **Último sync:** [DD-MM-YYYY HH:MM:SS(GMT-04:00)]
+   **Tarefa:** [aprovado na Fase 2]
+   **Etapas:** [aprovado na Fase 2]
+   **Status:** [aprovado na Fase 2]
 
-3. Entrar no repositório de contexto e sincronizar com a nuvem:
+   ## Atividade desta sessão
+   - [lista aprovada na Fase 2]
+
+   ## Próximo Passo (P0)
+   [aprovado na Fase 2]
+   ─────────────────────────────────────────────────
+
+3. Commitar o shard localmente no repositório de contexto:
    $ cd .agent/session
+   $ git add shards/[MACHINE_ID].md
+   $ git commit -m "chore(shard): session registered [MACHINE_ID] [TIMESTAMP]"
 
-   3a. [REBASE — prioridade à nuvem]
-       $ git pull origin main --rebase
-       → Isso traz mudanças feitas em outras máquinas.
-       → Em caso de conflito: pausar e alertar o usuário para resolver manualmente
-         ou acionar o session-resolve.sh.
+   ⚠️ NÃO EXECUTAR git push aqui.
+      O push é responsabilidade exclusiva do /session-consolidate.
 
-   3b. [CONSOLIDAÇÃO — mescla de contextos multi-máquina]
-       Executar o script de consolidação:
-       $ python3 ../kit/scripts/session-consolidate.py .
+4. Exibir a confirmação final ao usuário:
 
-   3c. [COMMIT DO CONTEXTO]
-       $ git add .
-       $ git commit -m "chore: session end [data] — [resumo]"
-
-   3d. [PUSH — o último passo real]
-       $ git push origin main
-```
-
----
-
-## Confirmação Final
-
-Após completar as 3 fases, apresentar:
-
-```markdown
-## ✅ Sessão Encerrada com Sucesso
-
-**Repositório Raiz:** pushed ✅
-**Repositório de Contexto:** synced ✅
-**Skills/Melhorias geradas:** [lista ou "nenhuma"]
-**Próxima sessão começa em:** [P0 — descrição]
-
-Até a próxima. Use `/session-start` para retomar.
+   ✅ Sessão registrada localmente com sucesso!
+   
+   📌 Shard [MACHINE_ID] salvo em .agent/session/shards/.
+   📦 Repositório raiz: pushed ✅
+   📡 Para sincronizar com a nuvem e ver o dashboard:
+      → Rode /session-consolidate
 ```
 
 ---

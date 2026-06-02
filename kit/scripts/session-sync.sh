@@ -53,11 +53,7 @@ if [ "$STASH_NEEDED" -eq 1 ]; then
 fi
 
 echo "🧩 [2/4] Consolidando contextos de todas as máquinas..."
-if [ -f "${CONSOLIDATE_SCRIPT}" ]; then
-    python3 "${CONSOLIDATE_SCRIPT}" "${SESSION_DIR}"
-else
-    echo "   ⚠️  session-consolidate.py não encontrado em ${CONSOLIDATE_SCRIPT}. Pulando consolidação."
-fi
+echo "   (A consolidação semântica agora é feita diretamente pela IA via workflow /session-consolidate)"
 
 echo "💾 [3/4] Salvando estado consolidado localmente..."
 git add .
