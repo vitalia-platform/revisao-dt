@@ -170,6 +170,9 @@ C) Inserir no topo de SESSION_HISTORY.md (Cronologia Reversa — Regra P4):
    $ git add .
    $ git commit -m "chore: session consolidated — dashboard updated [TIMESTAMP]"
    $ git push origin main
+
+3. Atualizar o lock de sincronia local para refletir o push da nuvem:
+   $ python3 ../scripts/lib_sync_guard.py --action update --session-dir .
 ```
 
 ---

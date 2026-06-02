@@ -1,4 +1,8 @@
 
-# Ignorar contexto de sessão da IA (repósitorio aninhado isolado)
+# Ignorar contexto de sessão da IA (repositório aninhado isolado)
 .agent/session/
 .agent/session/*
+
+# Ignorar storage de dados da revisão (repositório aninhado isolado)
+.agent/data_storage/
+.agent/data_storage/*

@@ -42,3 +42,4 @@ Estas são as **21 diretrizes invioláveis** que governam todo o desenvolvimento
     -   *Server State:* TanStack Query (Cache e Sincronização).
     -   *Client State:* Redux Toolkit (Sessão, UI Global).
 -   **(P21) Lançamentos Graduais:** Funcionalidades complexas devem ser desenvolvidas atrás de *Feature Flags* para permitir deploy contínuo sem quebrar a produção.
+-   **(P22) Manutenção do Kit de Agentes (Symlinks):** Toda edição estrutural no kit (workflows, rules, skills) deve ser realizada sempre via os symlinks em `.agent/` (ex: `.agent/workflows/`) e de forma agnóstica a caminhos de repositórios específicos. Isso mantém o projeto viável como GitHub Template para futuros trabalhos.
