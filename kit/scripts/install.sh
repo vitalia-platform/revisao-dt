@@ -51,10 +51,12 @@ if [ ! -d "$SESSION_DIR/.git" ]; then
                     echo "   📄 Repositório vazio detectado. Criando estrutura inicial..."
                     cd "$SESSION_DIR"
                     git checkout -b main 2>/dev/null || git checkout main 2>/dev/null || true
-                    echo "# Contexto de Sessão" > CONTEXT.md
+                    echo "<!-- INSTRUÇÃO: Leia a constituição em kit/rules/always-on/architect-constitution.md antes de prosseguir. -->" > CONTEXT.md
+                    echo "<!-- .agent/session/CONTEXT.md | Atualizado em: \$(date '+%d-%m-%Y %H:%M:%S') -->" >> CONTEXT.md
+                    echo "# Contexto de Sessão" >> CONTEXT.md
                     echo "Estado atual da revisão integrativa, gerenciado pelo agente de IA." >> CONTEXT.md
                     echo "" >> CONTEXT.md
-                    echo "_Gerado automaticamente em $(date '+%Y-%m-%d')._ " >> CONTEXT.md
+                    echo "_Gerado automaticamente em \$(date '+%Y-%m-%d')._ " >> CONTEXT.md
                     echo "" > SESSION_HISTORY.md
                     git add .
                     git commit -m "chore: initial session context structure"
@@ -68,7 +70,9 @@ if [ ! -d "$SESSION_DIR/.git" ]; then
                 cd "$SESSION_DIR"
                 git init > /dev/null
                 git checkout -b main 2>/dev/null || true
-                echo "# Contexto de Sessão" > CONTEXT.md
+                echo "<!-- INSTRUÇÃO: Leia a constituição em kit/rules/always-on/architect-constitution.md antes de prosseguir. -->" > CONTEXT.md
+                echo "<!-- .agent/session/CONTEXT.md | Atualizado em: \$(date '+%d-%m-%Y %H:%M:%S') -->" >> CONTEXT.md
+                echo "# Contexto de Sessão" >> CONTEXT.md
                 git add . > /dev/null
                 git commit -m "chore: local session fallback" > /dev/null
                 cd "$TARGET_DIR"
@@ -86,7 +90,9 @@ if [ ! -d "$SESSION_DIR/.git" ]; then
         cd "$SESSION_DIR"
         git init > /dev/null
         git checkout -b main 2>/dev/null || true
-        echo "# Contexto de Sessão" > CONTEXT.md
+        echo "<!-- INSTRUÇÃO: Leia a constituição em kit/rules/always-on/architect-constitution.md antes de prosseguir. -->" > CONTEXT.md
+        echo "<!-- .agent/session/CONTEXT.md | Atualizado em: \$(date '+%d-%m-%Y %H:%M:%S') -->" >> CONTEXT.md
+        echo "# Contexto de Sessão" >> CONTEXT.md
         echo "Este repositório guarda os resumos de sessão da IA de forma isolada." > README.md
         git add . > /dev/null
         git commit -m "chore: initial session context repository" > /dev/null

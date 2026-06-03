@@ -23,13 +23,13 @@ revisao-dt/                   ← ESTE REPOSITÓRIO (template base — clone par
     ├── TEMPLATE_PRISMA_LOG.csv
     └── criteria_config.template.yaml
 
-seu-repo-de-trabalho/         ← CRIADO POR VOCÊ (ver seção "Criando seu repositório")
-├── [pasta-exportacao]/       ← Nome definido no painel /integrative-review
-├── [pasta-amostra]/          ← Nome definido no painel /integrative-review
-├── [pasta-lotes]/            ← Nome definido no painel /integrative-review
-├── [pasta-saida]/            ← Nome definido no painel /integrative-review
-├── [pasta-fichamentos]/      ← Nome definido no painel /integrative-review
-└── criteria_config.yaml      ← Gerado pelo /integrative-review (cérebro do sistema)
+seu-repo-de-trabalho/         ← CRIADO POR VOCÊ (Repositório Principal)
+├── .agent/data_storage/      ← Armazenamento de Dados Isolado (Dual-Git Data)
+│   ├── exportacao/           ← PDFs, CSVs brutos importados (symlink na raiz)
+│   ├── amostra/              ← Estrutura para calibração inicial (symlink na raiz)
+│   ├── saida/                ← Logs PRISMA e JSONs de Auditoria (symlink na raiz)
+│   └── fichamentos/          ← Textos extraídos em profundidade (symlink na raiz)
+└── criteria_config.yaml      ← Configuração central gerada (cérebro do sistema)
 ```
 
 | Componente | Para que serve |
@@ -174,9 +174,11 @@ Após o preenchimento, o agente criará as pastas, aguardará o depósito dos da
 ```
 Amostra → [IA calibra critérios] → Aprovação Humana
     ↓
-Lotes CSV → [Ollama local: triagem por abstract] → LOG_PRISMA_FASE1.csv
+APIs (PubMed/OpenAlex) / CSVs → [Ingestão e Deduplicação] → PRISMA_LOG_MASTER.csv
     ↓
-Revisão Humana da amostra → Aprovação Humana
+PRISMA_LOG_MASTER → [LLMRouter + Qwen/Gemini: Screening Título/Resumo] → Audit JSONs
+    ↓
+Revisão Humana do Dashboard PROGRESS.html → Aprovação Humana
     ↓
 DOIs aprovados → [Script multi-fonte: Unpaywall, PMC, EuropePMC, Crossref] → PDFs
     ↓
