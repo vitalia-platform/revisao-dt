@@ -1,30 +1,31 @@
-# scripts/review_pipeline/core/terminal.py | Última Atualização: 21-05-2026 11:31:00(GMT-04:00)
-"""
-terminal.py — UI Unificada e Resiliência de Interface
-
-Centraliza a exibição de barras de progresso, menus interativos, 
-tratamento de Ctrl+C e relatórios de sessão.
-"""
+# scripts/review_pipeline/core/terminal.py
 import sys
 import time
+import datetime
 import termios
 import tty
 import select
 import signal
-import datetime
-import os
-import requests
+
+try:
+    from rich.live import Live
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.layout import Layout
+    from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn, TimeElapsedColumn
+    from rich.console import Console
+    _RICH_AVAILABLE = True
+except ImportError:
+    _RICH_AVAILABLE = False
 
 _interrupt_context = {}
 _terminal_old_settings = None
 _terminal_fd = None
 
-def setup_interrupt_handler(api_url, model, log_fn=None, get_context_fn=None):
+def setup_interrupt_handler(router, get_context_fn=None):
     """Instala handler global para SIGINT (Ctrl+C)."""
     global _interrupt_context
-    _interrupt_context['api_url'] = api_url
-    _interrupt_context['model'] = model
-    _interrupt_context['log_fn'] = log_fn
+    _interrupt_context['router'] = router
     _interrupt_context['get_context_fn'] = get_context_fn
 
     def sigint_handler(signum, frame):
@@ -44,38 +45,15 @@ def setup_interrupt_handler(api_url, model, log_fn=None, get_context_fn=None):
         if "idx" in ctx and "total" in ctx:
             print(f"Progresso na sessão   : {ctx['idx']}/{ctx['total']} artigos")
             
-        print(f"Hora do cancelamento  : {datetime.datetime.now().strftime('%d-%m-%Y %H:%M:%S(GMT-04:00)')}")
-        print("Dados preservados     : PRISMA_LOG.csv e shards atualizados até o artigo anterior.\n")
+        print(f"Hora do cancelamento  : {datetime.datetime.now().strftime('%d-%m-%Y %H:%M:%S')}")
+        print("Dados preservados     : Logs CSV e relatórios de auditoria parciais mantidos.\n")
 
-        print("Liberando VRAM do Ollama...")
-        _unload_model(api_url, model)
-        print("✔ Modelo descarregado. Recursos liberados.")
-
-        if log_fn:
-            log_fn("SIGINT: Execução cancelada pelo usuário via Ctrl+C.")
-
+        print("✔ Cancelamento concluído. O progresso foi retido.")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, sigint_handler)
 
-def _unload_model(api_url, model):
-    try:
-        headers = {"Content-Type": "application/json"}
-        payload = {"model": model, "prompt": "", "keep_alive": 0, "stream": False}
-        requests.post(api_url, headers=headers, json=payload, timeout=5)
-    except Exception:
-        pass
-
-def update_interrupt_context(**kwargs):
-    global _interrupt_context
-    _interrupt_context.update(kwargs)
-
 def handle_error_menu(title, error, default_action="2", timeout=120, phase_label=""):
-    """
-    Exibe menu interativo não bloqueante com timeout.
-    Se o timeout <= 0 (ex: modo overnight), retorna a default action imediatamente.
-    Retorna: (choice, is_timeout)
-    """
     if timeout <= 0:
         return default_action, True
 
@@ -122,15 +100,10 @@ def handle_error_menu(title, error, default_action="2", timeout=120, phase_label
                 ch = sys.stdin.read(1)
                 if ch == '\x03': # Ctrl+C
                     raise KeyboardInterrupt
-                if ch == '\x1b': # Escape seq (setas)
+                if ch == '\x1b': # Escape seq
                     ch2 = sys.stdin.read(2)
-                    if ch2 == '[A': # Up
-                        current_idx = (current_idx - 1) % len(options)
-                    elif ch2 == '[B': # Down
-                        current_idx = (current_idx + 1) % len(options)
-                elif ch in options:
-                    current_idx = options.index(ch)
-                    return options[current_idx], False
+                    if ch2 == '[A': current_idx = (current_idx - 1) % len(options)
+                    elif ch2 == '[B': current_idx = (current_idx + 1) % len(options)
                 elif ch == '\n':
                     return options[current_idx], False
     finally:
@@ -140,51 +113,96 @@ def handle_error_menu(title, error, default_action="2", timeout=120, phase_label
         
     return options[current_idx], True
 
-def show_article_header(idx, total, title):
-    title_disp = title[:70] + "..." if len(title) > 70 else title
-    print(f"\n[{idx}/{total}] 📄 Processando: \033[96m{title_disp}\033[0m")
 
-def show_article_decision(decision, reason):
-    if "INCLUIR" in decision or "Aprovado" in decision:
-        print("\033[92m-> DECISÃO: INCLUIR\033[0m")
-    elif "EXCLUIR" in decision or "Excluido" in decision:
-        print("\033[91m-> DECISÃO: EXCLUIR\033[0m")
-    else:
-        print(f"\033[93m-> DECISÃO: INCERTA ({decision})\033[0m")
-    
-    reason_disp = reason[:120] + "..." if len(reason) > 120 else reason
-    print(f"   \033[3mMotivo:\033[0m {reason_disp}")
+class RichDashboard:
+    """Componente de UI Unificado com Rich Dashboard para visualizações premium de terminal."""
+    def __init__(self, title: str, total: int, console_title: str = "Console de Auditoria (trAIce)", stats_title: str = "Estatísticas da Sessão"):
+        if not _RICH_AVAILABLE:
+            raise RuntimeError("[ERRO] Biblioteca rich não está disponível.")
+        self.title = title
+        self.total = total
+        self.console_title = console_title
+        self.stats_title = stats_title
+        self.current = 0
+        self.success = 0
+        self.fail = 0
+        self.sources = {}
+        self.logs = []
+        self.console = Console()
+        self.progress_bar = Progress(
+            TextColumn("[progress.percentage]{task.percentage:>3.1f}%"),
+            BarColumn(),
+            TextColumn("({task.completed}/{task.total})"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            expand=True
+        )
+        self.task_id = self.progress_bar.add_task("Running", total=total)
+        self.live = None
 
-def show_progress_bar(current, total, **counters):
-    if total == 0: return
-    percent = float(current) * 100 / total
-    filled = int(30 * current // total)
-    bar = '█' * filled + '-' * (30 - filled)
-    
-    base_str = f"\r\033[94mProgresso: [{bar}] {percent:.1f}% ({current}/{total})\033[0m"
-    details = []
-    if "incluidos" in counters and "excluidos" in counters:
-        details.append(f"Incluídos: \033[92m{counters['incluidos']}\033[0m")
-        details.append(f"Excluídos: \033[91m{counters['excluidos']}\033[0m")
-    if "erros" in counters and counters["erros"] > 0:
-        details.append(f"Erros: \033[93m{counters['erros']}\033[0m")
-    if "success" in counters:
-        details.append(f"Sucesso: \033[92m{counters['success']}\033[0m")
+    def add_log(self, msg: str, max_logs: int = 15):
+        ts = time.strftime("%H:%M:%S")
+        self.logs.append(f"[[dim]{ts}[/dim]] {msg}")
+        if len(self.logs) > max_logs:
+            self.logs.pop(0)
+        self.update()
+
+    def increment_success(self, source: str = None):
+        self.current += 1
+        self.success += 1
+        if source:
+            self.sources[source] = self.sources.get(source, 0) + 1
+        self.progress_bar.advance(self.task_id)
+        self.update()
+
+    def increment_fail(self, source: str = "Falhas"):
+        self.current += 1
+        self.fail += 1
+        if source:
+            self.sources[source] = self.sources.get(source, 0) + 1
+        self.progress_bar.advance(self.task_id)
+        self.update()
+
+    def generate_layout(self) -> Layout:
+        layout = Layout()
+        layout.split_column(
+            Layout(name="header", size=3),
+            Layout(name="main", size=8),
+            Layout(name="footer")
+        )
         
-    sys.stdout.write(f"{base_str} | {' | '.join(details)} ")
-    sys.stdout.flush()
+        layout["header"].update(Panel(f"[bold cyan]{self.title}[/bold cyan] - {self.current}/{self.total} Processados", style="blue"))
+        
+        stats_table = Table(show_header=True, header_style="bold magenta", expand=True)
+        stats_table.add_column("Métrica")
+        stats_table.add_column("Contagem", justify="right")
+        
+        for src, count in sorted(self.sources.items(), key=lambda x: -x[1]):
+            stats_table.add_row(src, str(count))
+            
+        stats_table.add_row("[bold green]Total Incluídos[/bold green]", f"[bold green]{self.success}[/bold green]")
+        stats_table.add_row("[bold red]Total Excluídos[/bold red]", f"[bold red]{self.fail}[/bold red]")
+        
+        layout["main"].split_row(
+            Layout(Panel(stats_table, title=f"[yellow]{self.stats_title}[/yellow]")),
+            Layout(Panel(self.progress_bar, title="[yellow]Progresso Global[/yellow]"))
+        )
+        
+        logs_text = "\n".join(self.logs)
+        layout["footer"].update(Panel(logs_text, title=f"[green]{self.console_title}[/green]", subtitle="Aperte Ctrl+C para parada segura"))
+        
+        return layout
 
-def print_section_header(title, width=60):
-    print(f"\n\033[94m{'═'*width}\033[0m")
-    print(f"\033[92m  {title}\033[0m")
-    print(f"\033[94m{'═'*width}\033[0m")
+    def __enter__(self):
+        self.live = Live(self.generate_layout(), refresh_per_second=4, console=self.console)
+        self.live.start()
+        return self
 
-def show_session_resume_banner(already_done, total, phase_label):
-    if already_done <= 0: return
-    restante = total - already_done
-    print("\n\033[93m╔══════════════════════════════════════════════════════════╗")
-    print(f"║  ▶ RETOMANDO SESSÃO PARCIAL — {phase_label.ljust(26)}║")
-    print("╠══════════════════════════════════════════════════════════╣")
-    print(f"║  Artigos processados na sessão anterior: {str(already_done).ljust(16)}║")
-    print(f"║  Artigos restantes nesta sessão:         {str(restante).ljust(16)}║")
-    print("╚══════════════════════════════════════════════════════════╝\033[0m\n")
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.live:
+            self.live.stop()
+            self.live = None
+
+    def update(self):
+        if self.live:
+            self.live.update(self.generate_layout())

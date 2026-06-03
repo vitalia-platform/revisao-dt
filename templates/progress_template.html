@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard PRISMA - Revisão DT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .funnel-stage { transition: all 0.3s ease; cursor: pointer; }
+        .funnel-stage:hover { transform: scale(1.02); background-color: #f9fafb; border-radius: 0.5rem; padding-left: 0.5rem; padding-right: 0.5rem; margin-left: -0.5rem; margin-right: -0.5rem; }
+        .progress-bar-fill { transition: width 1s ease-in-out; }
+        .stat-card { cursor: pointer; transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        
+        /* Modal Styles */
+        #dataModal { display: none; }
+        #dataModal.active { display: flex; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    
+    <!-- Styles to support delayed animation -->
+    <style>
+        .macro-progress-bar {
+            width: 0%;
+            transition: width 2s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+    </style>
+
+    <div class="p-6 max-w-6xl mx-auto mt-4">
+        <header class="mb-8 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Dashboard de Progresso</h1>
+                    <p class="text-gray-500 mt-2">Revisão DT • Auditoria em Tempo Real</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-400">Última atualização</p>
+                    <p class="font-semibold text-gray-700">{{ DATA_ATUALIZACAO }}</p>
+                </div>
+            </div>
+
+            <!-- Stepper Progress Bar -->
+            <div class="relative w-full">
+                <!-- Bar Background -->
+                <div class="absolute top-1/2 left-0 w-full h-2 bg-gray-200 rounded-full -translate-y-1/2 z-0"></div>
+                
+                <!-- Animated Fill Bar -->
+                <div class="absolute top-1/2 left-0 h-2 bg-indigo-600 rounded-full -translate-y-1/2 z-10 macro-progress-bar" data-target-width="{{ MACRO_PHASE_WIDTH }}"></div>
+                
+                <!-- Steps Indicators -->
+                <div class="relative z-20 flex justify-between items-center w-full px-2">
+                    <div class="flex flex-col items-center">
+                        <div class="w-4 h-4 bg-indigo-600 rounded-full border-4 border-white shadow"></div>
+                        <span class="text-xs font-semibold text-indigo-700 mt-2">Ingestão</span>
+                    </div>
+                    
+                    <div class="flex flex-col items-center">
+                        <div class="w-4 h-4 rounded-full border-4 border-white shadow {{ MACRO_PHASE_2_COLOR }}"></div>
+                        <span class="text-xs font-semibold mt-2 {{ MACRO_PHASE_2_TEXT }}">Triagem</span>
+                    </div>
+                    
+                    <div class="flex flex-col items-center">
+                        <div class="w-4 h-4 rounded-full border-4 border-white shadow {{ MACRO_PHASE_3_COLOR }}"></div>
+                        <span class="text-xs font-semibold mt-2 {{ MACRO_PHASE_3_TEXT }}">Fichamento</span>
+                    </div>
+                    
+                    <div class="flex flex-col items-center">
+                        <div class="w-4 h-4 rounded-full border-4 border-white shadow {{ MACRO_PHASE_4_COLOR }}"></div>
+                        <span class="text-xs font-semibold mt-2 {{ MACRO_PHASE_4_TEXT }}">Síntese</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Totais -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-500 stat-card" onclick="openModal('pendentes', 'Aguardando Triagem')">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Aguardando Triagem</h3>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span class="text-4xl font-bold text-gray-900">{{ TOTAL_PENDENTES_F1 }}</span>
+                    <span class="text-sm text-blue-600 font-medium">clique para listar</span>
+                </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-green-500 stat-card" onclick="openModal('incluidos', 'Artigos Incluídos (Fase 1)')">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Incluídos (Fase 1)</h3>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span class="text-4xl font-bold text-gray-900">{{ TOTAL_INCLUIDOS_F1 }}</span>
+                    <span class="text-sm text-green-600 font-medium">({{ PERCENT_INCLUIDOS }}%)</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-red-500 stat-card" onclick="openModal('excluidos', 'Artigos Excluídos (Fase 1)')">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Excluídos (Fase 1)</h3>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span class="text-4xl font-bold text-gray-900">{{ TOTAL_EXCLUIDOS_F1 }}</span>
+                    <span class="text-sm text-red-600 font-medium">({{ PERCENT_EXCLUIDOS }}%)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Funil PRISMA Visual -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">Funil de Triagem</h2>
+                
+                <div class="space-y-6">
+                    <div class="funnel-stage pb-2" onclick="openModal('pendentes', 'Aguardando Triagem')">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-700">Aguardando Triagem</span>
+                            <span class="text-sm font-medium text-gray-700">{{ TOTAL_PENDENTES_F1 }}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-gray-400 h-2.5 rounded-full progress-bar-fill" style="width: {{ PERCENT_PENDENTES }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="funnel-stage pb-2" onclick="openModal('incluidos', 'Artigos Incluídos')">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-700">Aprovados Fase 1</span>
+                            <span class="text-sm font-medium text-gray-700">{{ TOTAL_INCLUIDOS_F1 }}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-green-500 h-2.5 rounded-full progress-bar-fill" style="width: {{ PERCENT_INCLUIDOS }}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="funnel-stage pt-4 border-t border-gray-100" onclick="openModal('needs_pdf', 'Necessitam Download Manual')">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-700">Aguardando PDF (Ação Manual)</span>
+                            <span class="text-sm font-bold text-red-600">{{ TOTAL_NEEDS_PDF }}</span>
+                        </div>
+                        <div class="w-full bg-red-100 rounded-full h-2.5">
+                            <div class="bg-red-500 h-2.5 rounded-full progress-bar-fill" style="width: {{ PERCENT_NEEDS_PDF }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Por Máquina e Auditoria -->
+            <div class="space-y-8">
+                <!-- Auditoria PRISMA-S / trAIce -->
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-indigo-100 border-l-4 border-l-indigo-500">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Auditoria de Triagem (trAIce)
+                    </h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-gray-50 p-3 rounded">
+                            <p class="text-xs text-gray-500 font-semibold uppercase">Inferências (LLM)</p>
+                            <p class="text-2xl font-bold text-gray-800">{{ AUDIT_INFERENCES }}</p>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded">
+                            <p class="text-xs text-gray-500 font-semibold uppercase">Latência Média</p>
+                            <p class="text-2xl font-bold text-gray-800">{{ AUDIT_LATENCY }}</p>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded col-span-2 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 font-semibold uppercase">Modelo Dominante</p>
+                                <p class="text-sm font-bold text-indigo-700">{{ AUDIT_MODEL }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Processamento por Máquina -->
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">Processamento por Máquina</h2>
+                    <div class="overflow-hidden border border-gray-100 rounded">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Machine ID</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Processados</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                {{ TABELA_MAQUINAS }}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal Interativo -->
+    <div id="dataModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[80vh] flex flex-col">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-lg">
+                <h3 class="text-xl font-bold text-gray-800" id="modalTitle">Detalhes</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-gray-50" id="modalContent">
+                <!-- Data injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Payload injetado pelo Python
+        const articlesData = {{ ARTICLES_JSON }};
+
+        function openModal(category, title) {
+            document.getElementById('modalTitle').innerText = title;
+            const contentDiv = document.getElementById('modalContent');
+            contentDiv.innerHTML = ''; // Clear previous
+
+            const data = articlesData[category] || [];
+            
+            if(data.length === 0) {
+                contentDiv.innerHTML = '<div class="text-center py-10 text-gray-500">Nenhum artigo nesta categoria.</div>';
+            } else {
+                let html = '<div class="grid grid-cols-1 gap-4">';
+                data.forEach(art => {
+                    html += `
+                        <div class="bg-white p-4 rounded shadow-sm border border-gray-200 hover:border-indigo-300 transition-colors">
+                            <h4 class="font-bold text-indigo-700 text-lg mb-1">${art.Title || 'Sem Título'}</h4>
+                            <p class="text-sm text-gray-600 mb-2"><strong>Autores:</strong> ${art.Authors}</p>
+                            <div class="flex gap-4 text-xs text-gray-500">
+                                <span><strong>Ano:</strong> ${art.Year}</span>
+                                <span><strong>Revista:</strong> ${art.Journal}</span>
+                                <span><strong>Fonte:</strong> ${art.Source}</span>
+                            </div>
+                            ${art.DOI ? `<div class="mt-3"><a href="https://doi.org/${art.DOI}" target="_blank" class="text-xs text-blue-600 hover:underline border border-blue-200 bg-blue-50 px-2 py-1 rounded inline-block">🔗 DOI: ${art.DOI}</a></div>` : ''}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                contentDiv.innerHTML = html;
+            }
+
+            document.getElementById('dataModal').classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        }
+
+        function closeModal() {
+            document.getElementById('dataModal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Close modal on click outside
+        document.getElementById('dataModal').addEventListener('click', function(e) {
+            if(e.target === this) {
+                closeModal();
+            }
+        });
+        
+        // Escape key to close
+        document.addEventListener('keydown', function(e) {
+            if(e.key === 'Escape') closeModal();
+        });
+
+        // Animated Macro Progress Bar
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const bar = document.querySelector('.macro-progress-bar');
+                if (bar && bar.dataset.targetWidth) {
+                    bar.style.width = bar.dataset.targetWidth;
+                }
+            }, 1000); // 1 second delay
+        });
+    </script>
+</body>
+</html>

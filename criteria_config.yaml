@@ -60,12 +60,21 @@ audit_logging:
   timestamp_format: "ISO8601"
 
 # ──────────────────────────────────────────────
-# CONFIGURAÇÃO DO SERVIDOR LOCAL DE IA
+# CONFIGURAÇÃO DO SERVIDOR LOCAL E NUVEM (LLM ROUTER)
 # ──────────────────────────────────────────────
-ollama:
-  base_url: "${OLLAMA_BASE_URL}"
-  model: "llama3.2:3b"
-  embedding_model: "nomic-embed-text"
+llm_router:
+  strategy: "local_first"
+  phases:
+    screening:  { backend: "local",  model: "qwen2.5-coder-vitalia:latest" }
+    extraction: { backend: "local",  model: "qwen2.5-coder-vitalia:latest" }
+    synthesis:  { backend: "cloud",  model: "gemini-2.0" }
+  local:
+    base_url: "${OLLAMA_BASE_URL}"
+    embedding_model: "nomic-embed-text"
+  cloud:
+    provider: "gemini"
+    model: "${CLOUD_LLM_MODEL}"
+    api_key: "${CLOUD_LLM_API_KEY}"
 
 # ──────────────────────────────────────────────
 # CONFIGURAÇÃO DO PROCESSAMENTO EM LOTE

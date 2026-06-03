@@ -8,8 +8,7 @@ construir prompts agnósticos e livres de contaminação de domínio.
 import json
 
 def build_prompt(
-    title: str,
-    abstract: str,
+    article: dict,
     prompt_config: dict
 ) -> str:
     """
@@ -83,9 +82,13 @@ def build_prompt(
         f"\n=========================================\n"
         f"ARTIGO A SER ANALISADO AGORA:\n"
         f"=========================================\n"
-        f"Título: {title}\n"
-        f"Resumo: {abstract}\n"
+        f"Título: {article.get('Title', 'N/A')}\n"
+        f"Autores: {article.get('Authors', 'N/A')}\n"
+        f"Ano: {article.get('Year', 'N/A')}\n"
+        f"Dicas de palavras-chave: {article.get('Keywords', 'N/A')}\n"
+        f"Resumo: {article.get('Abstract', 'N/A')}\n"
         f"=========================================\n"
+        f"ATENÇÃO: Se o Resumo (Abstract) estiver indisponível ou for muito curto, tente deduzir pelo Título/Keywords. Se a data de publicação for dentro de 2010-2026 (veja o Ano acima), responda Yes para q3.\n\n"
         f"Sua resposta JSON contendo cot_analysis, final_decision, reasoning e extractions:"
     )
     
