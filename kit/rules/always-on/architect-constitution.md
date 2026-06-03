@@ -2,7 +2,7 @@
 trigger: always_on
 ---
 
-<!-- kit/rules/always-on/architect-constitution.md | Atualizado em: 01-06-2026 19:38:16(GMT-04:00) -->
+<!-- kit/rules/always-on/architect-constitution.md | Atualizado em: 03-06-2026 12:02:36(GMT-04:00) -->
 
 ## Constituição do Arquiteto (Princípios de Desenvolvimento)
 
@@ -31,17 +31,18 @@ Estas são as **22 diretrizes invioláveis** que governam todo o desenvolvimento
 
 ### IV. Arquitetura de Software
 
-- **(P11) Desacoplamento Limpo:**
+- **(P11) Desacoplamento Limpo e Zero Hardcoding:**
   - _Services:_ Lógica de Negócio Pura.
   - _Clients:_ Comunicação Externa (Ollama, APIs).
   - _Views/Tasks:_ Orquestração.
+  - _Configurações:_ Variáveis, regras de negócio e caminhos (paths) devem vir estritamente de arquivos de configuração (YAML/ENV). O *hardcoding* no código-fonte é terminantemente proibido.
 - **(P12) API-First:** O contrato (DRF Serializers) é a fonte da verdade. O Frontend e o Backend se alinham através dele antes da implementação.
 - **(P13) Serializers Dedicados:** Separar explicitamente `ReadSerializer` (com dados aninhados para exibição) de `WriteSerializer` (com validação estrita para entrada).
 
 ### V. Qualidade e Testes
 
 - **(P14) Testes como Contrato da Realidade:** Nenhuma funcionalidade crítica (especialmente as médicas e de segurança) é considerada pronta sem testes de unidade e integração (Pytest + FactoryBoy).
-- **(P15) Dependências Estritas:** Versionamento de bibliotecas travado (`requirements.txt`, `package.json`) para garantir builds reprodutíveis e auditáveis.
+- **(P15) Dependências Estritas e Ambientes Isolados:** É terminantemente proibido instalar pacotes globais no host (`--break-system-packages`). O ecossistema Python deve rodar exclusivamente dentro de um ambiente virtual isolado (`venv` ou `uv`), com versionamento de bibliotecas travado (`requirements.txt`, `package.json`) para garantir builds reprodutíveis e auditáveis.
 - **(P16) Validação Externa Ativa:** Não confiar cegamente em documentação de terceiros; validar o comportamento real das APIs e bibliotecas antes da implementação.
 
 ### VI. Performance e Frontend
@@ -54,3 +55,4 @@ Estas são as **22 diretrizes invioláveis** que governam todo o desenvolvimento
   - _Client State:_ Redux Toolkit (Sessão, UI Global).
 - **(P21) Lançamentos Graduais:** Funcionalidades complexas devem ser desenvolvidas atrás de _Feature Flags_ para permitir deploy contínuo sem quebrar a produção.
 - **(P22) Manutenção do Kit de Agentes (Symlinks):** Toda edição estrutural no kit (workflows, rules, skills) deve ser realizada sempre via os symlinks em `.agent/` (ex: `.agent/workflows/`) e de forma agnóstica a caminhos de repositórios específicos. Isso mantém o projeto viável como GitHub Template para futuros trabalhos.
+

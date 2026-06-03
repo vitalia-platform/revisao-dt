@@ -51,7 +51,9 @@ def generate_dashboard(log_path=".agent/data_storage/saida/PRISMA_LOG_MASTER.csv
                 "Year": row.get("Year", ""),
                 "Journal": row.get("Journal", ""),
                 "DOI": row.get("DOI", ""),
-                "Source": row.get("Source", "")
+                "Source": row.get("Source", ""),
+                "Reasoning": row.get("Reasoning", ""),
+                "CoT_Tags": row.get("CoT_Tags", "")
             }
             
             if "aguardando triagem" in status or status == "pending":
@@ -74,7 +76,10 @@ def generate_dashboard(log_path=".agent/data_storage/saida/PRISMA_LOG_MASTER.csv
     audit_stats = {
         "inferences": 0,
         "total_latency": 0,
-        "models": Counter()
+        "models": Counter(),
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "tokens_total": 0
     }
     
     if os.path.exists(audit_dir):
@@ -84,9 +89,13 @@ def generate_dashboard(log_path=".agent/data_storage/saida/PRISMA_LOG_MASTER.csv
                     try:
                         data = json.load(af)
                         audit_stats["inferences"] += 1
-                        audit_stats["total_latency"] += data.get("latency_seconds", 0)
-                        mod = data.get("model_used", "unknown")
+                        metrics = data.get("inference_metrics", {})
+                        audit_stats["total_latency"] += metrics.get("latency_seconds", 0)
+                        mod = metrics.get("model", "unknown")
                         audit_stats["models"][mod] += 1
+                        audit_stats["tokens_in"] += metrics.get("tokens_in", 0)
+                        audit_stats["tokens_out"] += metrics.get("tokens_out", 0)
+                        audit_stats["tokens_total"] += metrics.get("tokens_total", 0)
                     except:
                         pass
                         
@@ -149,6 +158,9 @@ def generate_dashboard(log_path=".agent/data_storage/saida/PRISMA_LOG_MASTER.csv
     html = html.replace("{{ AUDIT_INFERENCES }}", str(audit_stats["inferences"]))
     html = html.replace("{{ AUDIT_LATENCY }}", f"{avg_latency}s")
     html = html.replace("{{ AUDIT_MODEL }}", most_used_model)
+    html = html.replace("{{ AUDIT_TOKENS_IN }}", str(audit_stats["tokens_in"]))
+    html = html.replace("{{ AUDIT_TOKENS_OUT }}", str(audit_stats["tokens_out"]))
+    html = html.replace("{{ AUDIT_TOKENS_TOTAL }}", str(audit_stats["tokens_total"]))
     
     # Replace placeholders
     html = html.replace("{{ DATA_ATUALIZACAO }}", datetime.now().strftime("%d/%m/%Y %H:%M:%S"))

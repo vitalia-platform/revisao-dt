@@ -124,8 +124,7 @@ def fetch_pubmed(query: str, limit: int = 50):
 def fetch_openalex(query: str, limit: int = 50):
     print(f"\n[OpenAlex] Buscando {limit} artigos por relevância...")
     # OpenAlex funciona melhor convertendo a boolean string para um default.search
-    # Extrai os termos principais
-    search_term = "Design Thinking AND Physical Activity"
+    search_term = query
     
     # Monta a query URL
     url = f"https://api.openalex.org/works?search={urllib.parse.quote(search_term)}&per-page={limit}&sort=relevance_score:desc"
@@ -187,7 +186,7 @@ def main():
     print("==================================================")
     
     config = load_config()
-    query_string = config.get("study", {}).get("query_string", "")
+    query_string = config.get("project", {}).get("query_string", "")
     
     if not query_string:
         print("[ERRO] query_string não definida no criteria_config.yaml")

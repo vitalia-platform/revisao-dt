@@ -1,3 +1,4 @@
+# scripts/review_pipeline/run_fase1.py | Atualizado em: 03-06-2026 11:52:03(GMT-04:00)
 import os
 import sys
 import csv
@@ -18,29 +19,27 @@ def load_config(config_path="criteria_config.yaml"):
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
-def build_prompt_config(criteria: dict) -> dict:
+def build_prompt_config(screening_config: dict) -> dict:
+    criteria = screening_config.get("criteria", {})
     inc_text = "\n".join([f"- {i}" for i in criteria.get("inclusion", [])])
     exc_text = "\n".join([f"- {e}" for e in criteria.get("exclusion", [])])
     
+    rule_base = screening_config.get("decision_rule", "")
     rule = f"""CRITÉRIOS DE INCLUSÃO OBRIGATÓRIOS:
 {inc_text}
 
 CRITÉRIOS DE EXCLUSÃO IMEDIATA:
 {exc_text}
 
+REGRA LOGICA:
+{rule_base}
+
 DEVE RESPONDER APENAS JSON VÁLIDO.
 """
     return {
-        "cot_questions": [
-            {"id": "q1", "question": "O artigo aborda metodologias de Design Thinking, Co-design ou similares?"},
-            {"id": "q2", "question": "O artigo inclui intervenção de atividade física, esporte ou exercício ativo?"},
-            {"id": "q3", "question": "O artigo está dentro do período temporal (2010-2026) e tem aderência aos critérios?"}
-        ],
+        "cot_questions": screening_config.get("cot_questions", []),
         "decision_rule": rule,
-        "extraction_fields": [
-            {"id": "main_topic", "description": "Tópico central em uma frase"},
-            {"id": "methodology", "description": "Breve descrição do método mencionado"}
-        ],
+        "extraction_fields": [],
         "few_shot_examples": []
     }
 
@@ -60,8 +59,9 @@ def main():
     config = load_config(args.config)
     router = LLMRouter()
     
-    log_path = ".agent/data_storage/saida/PRISMA_LOG_MASTER.csv"
-    audit_dir = ".agent/data_storage/saida/audit"
+    data_storage = config.get("infrastructure", {}).get("data_storage", ".agent/data_storage")
+    log_path = os.path.join(data_storage, "saida", "PRISMA_LOG_MASTER.csv")
+    audit_dir = os.path.join(data_storage, "saida", "audit")
     os.makedirs(audit_dir, exist_ok=True)
     
     if not os.path.exists(log_path):
@@ -75,7 +75,7 @@ def main():
         for row in reader:
             articles.append(row)
             
-    prompt_config = build_prompt_config(config.get("criteria", {}))
+    prompt_config = build_prompt_config(config.get("screening_phase", {}))
     
     # Filtrar pendentes
     pending_articles = [art for art in articles if "aguardando" in art.get("Status", "").lower() or art.get("Status", "").lower() == "pending"]
@@ -119,7 +119,7 @@ def main():
             
             while retry_count <= args.retry and not success:
                 start_time = datetime.now()
-                res_json, backend, model = router.generate("screening", prompt, json_format=True)
+                res_json, backend, model, tokens_dict = router.generate("screening", prompt, json_format=True)
                 end_time = datetime.now()
                 latency = (end_time - start_time).total_seconds()
                 
@@ -128,20 +128,38 @@ def main():
                     decision = res_json.get("final_decision", "").upper()
                     reasoning = res_json.get("reasoning", "")
                     
+                    # Extração avançada das CoT tags
+                    cot_analysis = res_json.get("cot_analysis", {})
+                    cot_tags = []
+                    for k, v in cot_analysis.items():
+                        if isinstance(v, str):
+                            if "yes" in v.lower() or "sim" in v.lower():
+                                cot_tags.append(f"[{k.upper()}: YES]")
+                            elif "no" in v.lower() or "não" in v.lower() or "nao" in v.lower():
+                                cot_tags.append(f"[{k.upper()}: NO]")
+                            else:
+                                cot_tags.append(f"[{k.upper()}: ?]")
+                    cot_tags_str = " ".join(cot_tags)
+                    
                     if "INCLUIR" in decision or "INCLUDE" in decision:
                         art["Status"] = "Incluído (Fase 1)"
                         art["Exclusion_Reason"] = ""
                         art["PDF_status"] = "pending"
                         inclusions += 1
                         dashboard.increment_success(f"{backend}/{model}")
-                        dashboard.add_log(f"  [green]➜ INCLUIR[/green] ({latency:.1f}s)")
+                        dashboard.add_log(f"  [green]➜ INCLUIR[/green] ({latency:.1f}s) {cot_tags_str}")
                     else:
                         art["Status"] = "Excluído (Fase 1)"
                         art["Exclusion_Reason"] = reasoning
                         art["PDF_status"] = "not_needed"
                         exclusions += 1
                         dashboard.increment_fail(f"{backend}/{model}")
-                        dashboard.add_log(f"  [red]➜ EXCLUIR[/red] ({latency:.1f}s)")
+                        dashboard.add_log(f"  [red]➜ EXCLUIR[/red] ({latency:.1f}s) {cot_tags_str}")
+                        
+                    art["Reasoning"] = reasoning
+                    art["CoT_Tags"] = cot_tags_str
+                    if "Reasoning" not in fieldnames:
+                        fieldnames.extend(["Reasoning", "CoT_Tags"])
                         
                     processed += 1
                     
@@ -149,13 +167,30 @@ def main():
                     audit_id = art.get("DOI", "").replace("/", "_") if art.get("DOI") else f"NO_DOI_{processed}"
                     if not audit_id: audit_id = f"NO_DOI_{processed}"
                     
+                    # JSON de Auditoria Otimizado para Humanos
                     audit_payload = {
                         "timestamp": end_time.isoformat(),
-                        "backend_used": backend,
-                        "model_used": model,
-                        "latency_seconds": latency,
-                        "decision": decision,
-                        "reasoning": reasoning,
+                        "article_metadata": {
+                            "title": title,
+                            "authors": art.get("Authors", "N/A"),
+                            "year": art.get("Year", "N/A"),
+                            "journal": art.get("Journal", "N/A"),
+                            "doi": art.get("DOI", "N/A")
+                        },
+                        "inference_metrics": {
+                            "backend": backend,
+                            "model": model,
+                            "latency_seconds": round(latency, 2),
+                            "tokens_in": tokens_dict.get("prompt_eval_count", 0),
+                            "tokens_out": tokens_dict.get("eval_count", 0),
+                            "tokens_total": tokens_dict.get("prompt_eval_count", 0) + tokens_dict.get("eval_count", 0)
+                        },
+                        "model_reasoning": {
+                            "cot_tags": cot_tags_str,
+                            "raw_cot_analysis": cot_analysis,
+                            "final_decision": decision,
+                            "reasoning_summary": reasoning
+                        },
                         "prompt_used": prompt,
                         "raw_response": res_json
                     }

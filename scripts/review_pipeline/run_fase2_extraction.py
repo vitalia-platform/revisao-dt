@@ -1,6 +1,6 @@
-# scripts/review_pipeline/run_fase2_extraction.py | Última Atualização: 21-05-2026 11:31:00(GMT-04:00)
+# scripts/review_pipeline/run_fase2_extraction.py | Atualizado em: 03-06-2026 12:02:36(GMT-04:00)
 """
-run_fase2_extraction.py — Extração Profunda e Fichamento Acadêmico dos PDFs (Fase 2)
+run_fase2_extraction.py — Extração Profunda e Fichamento Acadêmico dos Arquivos (Fase 2)
 
 Uso:
     python run_fase2_extraction.py [--config ./criteria_config.yaml] [--overnight]
@@ -34,6 +34,43 @@ def calculate_sha256(filepath: str) -> str:
     except Exception as e:
         print(f"    [SHA-256] Erro ao calcular hash: {e}")
         return "SHA_CALCULATION_ERROR"
+
+def extract_xml_text(filepath: str, char_limit: int = 18000) -> str:
+    """Extrai texto cirurgicamente de arquivos XML (JATS) usando BeautifulSoup."""
+    try:
+        from bs4 import BeautifulSoup
+        with open(filepath, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f, "lxml-xml")
+        
+        text_blocks = []
+        abstract = soup.find("abstract")
+        if abstract:
+            text_blocks.append("--- ABSTRACT ---")
+            text_blocks.append(abstract.get_text(separator=" ", strip=True))
+            
+        body = soup.find("body")
+        if body:
+            sections = body.find_all("sec")
+            if sections:
+                for sec in sections:
+                    title = sec.find("title")
+                    sec_title = title.get_text(strip=True) if title else "SECTION"
+                    text_blocks.append(f"--- {sec_title.upper()} ---")
+                    text_blocks.append(sec.get_text(separator=" ", strip=True))
+            else:
+                text_blocks.append("--- BODY ---")
+                text_blocks.append(body.get_text(separator=" ", strip=True))
+                
+        full_text = "\n\n".join(text_blocks)
+        full_text = re.sub(r' {2,}', ' ', full_text)
+        
+        if len(full_text) > char_limit:
+            full_text = full_text[:char_limit] + "\n\n[TEXTO OTIMIZADO/COMPRIMIDO PARA LIMITES DE VRAM]"
+            
+        return full_text
+    except Exception as e:
+        print(f"    [Extração XML] Falha crítica de leitura: {e}")
+        return ""
 
 def extract_pdf_text(filepath: str, char_limit: int = 18000) -> str:
     try:
@@ -94,8 +131,6 @@ def format_fichamento(article_info: dict, ext_data: dict, sha256_hash: str, temp
             pass
             
     if not template:
-        # Fallback de template mínimo omitido aqui para brevidade (já lido no original).
-        # Mantendo um mínimo se faltar o arquivo.
         template = f"# Fichamento: {title}\n**Status**: DRAFT\n**Data**: {time.strftime('%d-%m-%Y')}\n\n**Autores**: {authors}\n**Resultados**: {ext_data.get('key_findings', 'N/A')}\n"
         
     formatted = template.replace("| **Título** | |", f"| **Título** | {title} |") \
@@ -122,38 +157,38 @@ def format_fichamento(article_info: dict, ext_data: dict, sha256_hash: str, temp
     return formatted
 
 def main():
-    parser = argparse.ArgumentParser(description="Fase 2 — Extração Profunda")
+    parser = argparse.ArgumentParser(description="Fase 2 — Extração Profunda Híbrida (XML/PDF)")
     parser.add_argument("--config", default="./criteria_config.yaml")
     parser.add_argument("--force-restart", action="store_true")
     parser.add_argument("--overnight", action="store_true", help="Pula erros sem bloqueio.")
     args = parser.parse_args()
 
     config = load_config(args.config)
-    paths = config.get("paths", {})
+    infrastructure = config.get("infrastructure", {})
+    data_storage = infrastructure.get("data_storage", ".agent/data_storage")
     
-    audit_base_dir = os.path.join(paths.get("output_prisma", "saida"), "auditoria")
+    audit_base_dir = os.path.join(data_storage, "saida", "auditoria")
     auditor = ReviewAuditor(base_audit_dir=audit_base_dir)
-    ollama_config = config.get("ollama", {})
     
-    base_url = ollama_config.get("base_url", "http://localhost:11434")
+    ollama_config = infrastructure.get("llm_router", {})
+    base_url = ollama_config.get("ollama_url", "http://192.168.0.254:11434")
     api_url = f"{base_url.rstrip('/')}/api/generate"
-    model = ollama_config.get("model", "llama3.2:3b")
+    model = ollama_config.get("model_local", "qwen2.5-coder-vitalia:latest")
     options = ollama_config.get("options", {})
     
     is_overnight = getattr(args, 'overnight', False)
     timeout_duration = 0 if is_overnight else 120
     default_error_action = "2" if is_overnight else "1"
     
-    # Variáveis globais para handler de interrupção
-    global processed_this_session, current_pdf_name, total_pdfs
+    global processed_this_session, current_file_name, total_files
     processed_this_session = 0
-    current_pdf_name = ""
-    total_pdfs = 0
+    current_file_name = ""
+    total_files = 0
 
     terminal.setup_interrupt_handler(
         api_url=api_url, 
         model=model, 
-        get_context_fn=lambda: {"idx": processed_this_session, "total": total_pdfs, "current_article": current_pdf_name}
+        get_context_fn=lambda: {"idx": processed_this_session, "total": total_files, "current_article": current_file_name}
     )
 
     print(f"\n\033[94m🔍 Pré-flight check: Verificando conexão com Ollama em {base_url}...\033[0m")
@@ -162,23 +197,22 @@ def main():
         sys.exit(1)
     print(f"\033[92m✔ Ollama ativo! Iniciando (Overnight: {is_overnight}).\033[0m\n")
 
-    prisma_log_path = os.path.join(paths.get("output_prisma", "saida"), "PRISMA_LOG.csv")
-    download_map_path = os.path.join(paths.get("output_prisma", "saida"), "DOWNLOAD_MAP.csv")
-    pdf_dir = os.path.join(paths.get("output_fichamentos", "fichamentos"), "pdfs")
-    fichamentos_dir = paths.get("output_fichamentos", "fichamentos")
+    prisma_log_path = os.path.join(data_storage, "saida", "PRISMA_LOG.csv")
+    download_map_path = os.path.join(data_storage, "saida", "DOWNLOAD_MAP.csv")
+    pdf_dir = os.path.join(data_storage, "fichamentos", "pdfs")
+    xml_dir = os.path.join(data_storage, "fichamentos", "xmls")
+    fichamentos_dir = os.path.join(data_storage, "fichamentos")
     template_path = os.path.join("inicio", "TEMPLATE_FICHAMENTO.md")
-    extraction_csv_path = os.path.join(paths.get("output_prisma", "saida"), "EXTRACTION_LOG.csv")
+    extraction_csv_path = os.path.join(data_storage, "saida", "EXTRACTION_LOG.csv")
     
-    if not os.path.exists(pdf_dir):
-        print(f"\033[91m[ERRO] Pasta de PDFs não encontrada em {pdf_dir}.\033[0m")
-        sys.exit(1)
+    os.makedirs(fichamentos_dir, exist_ok=True)
         
     articles_map = {}
     if os.path.exists(download_map_path):
         with open(download_map_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                if row.get("Status") in ["Downloaded", "Local/Existing"]:
+                if row.get("Status") in ["Downloaded", "Local/Existing", "Local/XML", "Local/PDF", "EuropePMC/XML", "OpenAlex/PDF"]:
                     articles_map[row.get("Saved_Filename", "")] = row
                     
     if not articles_map and os.path.exists(prisma_log_path):
@@ -191,17 +225,33 @@ def main():
                 clean_title = re.sub(r"[^\w\s-]", "", title)
                 clean_title = re.sub(r"[-\s]+", "_", clean_title).strip("_")[:60]
                 expected_pdf_name = f"{first_author}_{row.get('Year', '0000')}_{clean_title}.pdf"
+                expected_xml_name = f"{first_author}_{row.get('Year', '0000')}_{clean_title}.xml"
                 row["Original_Title"] = title
                 articles_map[expected_pdf_name] = row
+                articles_map[expected_xml_name] = row
 
-    pdf_files = [f for f in os.listdir(pdf_dir) if f.endswith(".pdf")]
-    total_pdfs = len(pdf_files)
+    files_to_process = []
+    xml_bases = set()
     
-    if total_pdfs == 0:
-        print("\033[91m[ERRO] Nenhum arquivo PDF encontrado.\033[0m")
+    if os.path.exists(xml_dir):
+        for f in os.listdir(xml_dir):
+            if f.endswith(".xml"):
+                files_to_process.append((f, os.path.join(xml_dir, f), "xml"))
+                xml_bases.add(os.path.splitext(f)[0])
+                
+    if os.path.exists(pdf_dir):
+        for f in os.listdir(pdf_dir):
+            if f.endswith(".pdf"):
+                base_name = os.path.splitext(f)[0]
+                if base_name not in xml_bases:
+                    files_to_process.append((f, os.path.join(pdf_dir, f), "pdf"))
+
+    total_files = len(files_to_process)
+    if total_files == 0:
+        print("\033[91m[ERRO] Nenhum arquivo PDF ou XML encontrado.\033[0m")
         sys.exit(1)
         
-    terminal.print_section_header(f"FASE 2 — EXTRAÇÃO PROFUNDA ({total_pdfs} PDF(s) para fichamento)")
+    terminal.print_section_header(f"FASE 2 — EXTRAÇÃO PROFUNDA ({total_files} Arquivo(s) para fichamento)")
 
     existing_extractions = {}
     if not args.force_restart and os.path.exists(extraction_csv_path):
@@ -242,24 +292,23 @@ def main():
     session_id = f"sess_f2_{time.strftime('%Y%m%d%H%M%S')}"
 
     try:
-        for idx, pdf_name in enumerate(pdf_files, 1):
-            current_pdf_name = pdf_name
-            terminal.show_progress_bar(idx, total_pdfs, success=success_count, skipped=skipped_count, erros=errors_count)
+        for idx, (filename, filepath, ftype) in enumerate(files_to_process, 1):
+            current_file_name = filename
+            terminal.show_progress_bar(idx, total_files, success=success_count, skipped=skipped_count, erros=errors_count)
             
-            fichamento_name = f"FICHAMENTO_{os.path.splitext(pdf_name)[0]}.md"
+            fichamento_name = f"FICHAMENTO_{os.path.splitext(filename)[0]}.md"
             fichamento_save_path = os.path.join(fichamentos_dir, fichamento_name)
             
-            if os.path.exists(fichamento_save_path) and pdf_name in existing_extractions:
+            if os.path.exists(fichamento_save_path) and filename in existing_extractions:
                 skipped_count += 1
                 continue
                 
-            pdf_path = os.path.join(pdf_dir, pdf_name)
-            sha256_hash = calculate_sha256(pdf_path)
+            sha256_hash = calculate_sha256(filepath)
             
-            article_info = articles_map.get(pdf_name, {})
+            article_info = articles_map.get(filename, {})
             if not article_info:
-                deduced_parts = os.path.splitext(pdf_name)[0].split("_")
-                deduced_title = " ".join(deduced_parts[2:]) if len(deduced_parts) > 2 else os.path.splitext(pdf_name)[0]
+                deduced_parts = os.path.splitext(filename)[0].split("_")
+                deduced_title = " ".join(deduced_parts[2:]) if len(deduced_parts) > 2 else os.path.splitext(filename)[0]
                 article_info = {
                     "Original_Title": deduced_title,
                     "Title": deduced_title,
@@ -268,9 +317,13 @@ def main():
                     "DOI": "", "Journal": "Não identificado"
                 }
 
-            pdf_text = extract_pdf_text(pdf_path)
-            if not pdf_text.strip():
-                print(f"\n\033[93m[AVISO] Texto do PDF {pdf_name} vazio ou ilegível.\033[0m")
+            if ftype == "xml":
+                file_text = extract_xml_text(filepath)
+            else:
+                file_text = extract_pdf_text(filepath)
+                
+            if not file_text.strip():
+                print(f"\n\033[93m[AVISO] Texto do arquivo {filename} vazio ou ilegível.\033[0m")
                 errors_count += 1
                 continue
                 
@@ -278,7 +331,7 @@ def main():
 Analyze the provided scientific text excerpt and extract the structured details.
 
 TEXT EXCERPT:
-{pdf_text}
+{file_text}
 
 INSTRUCTIONS:
 You MUST respond with a valid JSON object matching the exact structure below. 
@@ -319,7 +372,6 @@ EXPECTED JSON FORMAT:
                         elif v is None: extracted_json[k] = ""
                         else: extracted_json[k] = str(v)
                             
-                    # Sucesso total
                     fichamento_md_content = format_fichamento(article_info, extracted_json, sha256_hash, template_path)
                     
                     with open(fichamento_save_path, "w", encoding="utf-8") as f:
@@ -333,10 +385,10 @@ EXPECTED JSON FORMAT:
                         "raw_llm_response": resp_text,
                         "parsed_data": extracted_json
                     }
-                    auditor.save_inference_shard(phase=2, item_id=pdf_name, payload=audit_payload)
+                    auditor.save_inference_shard(phase=2, item_id=filename, payload=audit_payload)
                     
                     csv_row = {
-                        "Filename": pdf_name,
+                        "Filename": filename,
                         "Original_Title": article_info.get("Original_Title", ""),
                         "DOI": article_info.get("DOI", ""),
                         "Study_Design": extracted_json.get("study_design", "Não especificado"),
@@ -358,7 +410,7 @@ EXPECTED JSON FORMAT:
                     
                 except Exception as e:
                     choice, is_timeout = terminal.handle_error_menu(
-                        article_info.get("Original_Title", pdf_name), str(e), default_action=default_error_action, timeout=timeout_duration, phase_label="FASE 2"
+                        article_info.get("Original_Title", filename), str(e), default_action=default_error_action, timeout=timeout_duration, phase_label="FASE 2"
                     )
 
                     if choice == "1":
@@ -366,7 +418,7 @@ EXPECTED JSON FORMAT:
                             
                     if choice == "2":
                         csv_row = {
-                            "Filename": pdf_name,
+                            "Filename": filename,
                             "Original_Title": article_info.get("Original_Title", ""),
                             "DOI": article_info.get("DOI", ""),
                             "Study_Design": "Falha na extração",
@@ -400,7 +452,7 @@ EXPECTED JSON FORMAT:
             stats={"Processados": success_count, "Pulados": skipped_count, "Erros": errors_count},
             config_hash="N/A", 
             model=model, 
-            phase_label="Fase 2 - Extração"
+            phase_label="Fase 2 - Extração (Híbrida)"
         )
         print(f"Relatório da sessão salvo em: {report_path}")
 

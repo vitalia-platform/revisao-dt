@@ -1,3 +1,4 @@
+# scripts/review_pipeline/core/config_manager.py | Atualizado em: 03-06-2026 11:52:03(GMT-04:00)
 """
 config_manager.py — Carregamento e Validação do criteria_config.yaml
 
@@ -15,12 +16,9 @@ import yaml
 
 # Blocos obrigatórios no criteria_config.yaml
 REQUIRED_BLOCKS = [
-    "study",
-    "paths",
-    "ollama",
-    "processing",
-    "criteria",
-    "prompt_configuration",
+    "project",
+    "infrastructure",
+    "screening_phase",
 ]
 
 

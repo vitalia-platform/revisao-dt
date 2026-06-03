@@ -22,10 +22,10 @@ class LLMRouter:
             print(f"[LLMRouter] Erro ao ler config: {e}")
             self.config = {}
 
-        self.router_cfg = self.config.get("llm_router", {})
+        self.router_cfg = self.config.get("infrastructure", {}).get("llm_router", {})
         self.strategy = self.router_cfg.get("strategy", "local_first")
-        self.local_cfg = self.router_cfg.get("local", {})
-        self.cloud_cfg = self.router_cfg.get("cloud", {})
+        self.local_cfg = self.router_cfg
+        self.cloud_cfg = self.router_cfg
 
     def check_ollama_alive(self, base_url):
         try:
@@ -50,12 +50,18 @@ class LLMRouter:
                 if resp.status_code == 200:
                     data = resp.json()
                     response_text = data.get("response", "{}")
+                    
+                    tokens_dict = {
+                        "prompt_eval_count": data.get("prompt_eval_count", 0),
+                        "eval_count": data.get("eval_count", 0)
+                    }
+                    
                     if json_format:
                         try:
-                            return json.loads(response_text), "local", model
+                            return json.loads(response_text), "local", model, tokens_dict
                         except json.JSONDecodeError:
-                            return {"error": "Invalid JSON from Ollama", "raw": response_text}, "local", model
-                    return response_text, "local", model
+                            return {"error": "Invalid JSON from Ollama", "raw": response_text}, "local", model, tokens_dict
+                    return response_text, "local", model, tokens_dict
                 else:
                     print(f"    [LLMRouter] Local HTTP {resp.status_code} (Tentativa {attempt}/{max_retries})")
             except Exception as e:
@@ -63,34 +69,30 @@ class LLMRouter:
                 
             time.sleep(2 ** attempt)
 
-        return None, "local", model
+        return None, "local", model, {}
 
     def query_cloud(self, prompt, model, api_key, provider, json_format=True):
         # Aqui podemos implementar a chamada pro Gemini ou OpenAI.
         # Por hora, logamos que precisa ser implementado, ou podemos delegar ao agent local de LLM se existir
         print(f"    [LLMRouter] Cloud route acionado ({provider} / {model}).")
         # To be fully implemented when cloud synthesis is needed.
-        return {"error": "Cloud execution not fully implemented in script yet"}, "cloud", model
+        return {"error": "Cloud execution not fully implemented in script yet"}, "cloud", model, {}
 
     def generate(self, phase, prompt, json_format=True):
         """
         Roteia o prompt com base na configuração da fase e disponibilidade.
         Retorna: (resultado, backend_usado, modelo_usado)
         """
-        # Obter config da fase
-        phases = self.router_cfg.get("phases", {})
-        phase_cfg = phases.get(phase, {})
-        
-        backend = phase_cfg.get("backend", "local")
-        model = phase_cfg.get("model", "llama3.2:3b")
+        backend = self.router_cfg.get("backend", "local")
+        model = self.router_cfg.get("model_local", "qwen2.5-coder-vitalia:latest")
 
-        local_base_url = self.local_cfg.get("base_url", os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"))
+        local_base_url = self.router_cfg.get("ollama_url", os.environ.get("OLLAMA_BASE_URL", "http://192.168.0.254:11434"))
 
         if backend == "local" or (self.strategy == "local_first"):
             if self.check_ollama_alive(local_base_url):
-                res, b_used, m_used = self.query_ollama(prompt, model, local_base_url, json_format)
+                res, b_used, m_used, t_dict = self.query_ollama(prompt, model, local_base_url, json_format)
                 if res is not None:
-                    return res, b_used, m_used
+                    return res, b_used, m_used, t_dict
             
             # Se falhou e estrategia é local_first, tenta fallback
             if self.strategy == "local_first":
@@ -108,4 +110,4 @@ class LLMRouter:
                 
             return self.query_cloud(prompt, cloud_model, cloud_key, self.cloud_cfg.get("provider", "gemini"), json_format)
 
-        return None, "none", "none"
+        return None, "none", "none", {}

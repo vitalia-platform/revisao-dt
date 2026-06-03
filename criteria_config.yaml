@@ -1,0 +1,48 @@
+# criteria_config.yaml | Atualizado em: 03-06-2026 11:52:03(GMT-04:00)
+project:
+  title: "Design Thinking e Saúde Positiva"
+  pico_question: "De que forma a articulação entre a epistemologia do Design/Engenharia de Sistemas Complexos e os modelos de mudança comportamental pode fundamentar o desenvolvimento, a avaliação e a transposição pedagógica de intervenções em esporte, saúde e lazer para projetos de extensão universitária?"
+  query_string: '"Design Thinking" AND ("Health Behavior" OR "Interprofessional Education" OR "Physical Activity" OR "Wellness")'
+  time_range: "2010-2026"
+  active_sources: ["pubmed", "openalex", "scopus", "web_of_science"]
+  trending_topics: 
+    - "Design Thinking"
+    - "Teoria da Autodeterminação"
+    - "Salutogênese"
+    - "Saúde Positiva"
+    - "Wellness"
+    - "Cocriação Interprofissional"
+    - "Educação Interprofissional"
+
+infrastructure:
+  llm_router:
+    model_local: "qwen2.5-coder-vitalia:latest"
+    model_cloud: "gemini-2.0"
+    ollama_url: "http://192.168.0.254:11434"
+  embeddings: "nomic-embed-text"
+  batch_size: 1000
+  data_storage: ".agent/data_storage"
+
+screening_phase:
+  criteria:
+    inclusion:
+      - "Estudos que apliquem metodologias de Design Thinking ou Engenharia de Sistemas em saúde, esporte ou lazer."
+      - "Estudos abordando mudança comportamental e engajamento no contexto de saúde/lazer."
+      - "Estudos que envolvam práticas de cocriação, equipes multiprofissionais e interprofissionalidade."
+      - "Estudos voltados à transposição pedagógica, ensino de extensão e programas comunitários em saúde."
+    exclusion:
+      - "Intervenções unidisciplinares estritas atuando em silos isolados."
+      - "Estudos biomédicos estritos (fase I/II/III de medicamentos) sem componente comportamental, metodológico ou pedagógico."
+  cot_questions:
+    - id: "q1"
+      question: "O artigo discute a aplicação de princípios de Design, Engenharia de Sistemas ou metodologias correlatas? (Sim/Não)"
+    - id: "q2"
+      question: "O artigo envolve aspectos de mudança de comportamento, engajamento ou práticas interprofissionais/pedagógicas em saúde, esporte ou lazer? (Sim/Não)"
+  decision_rule: "Se q1 é Sim E q2 é Sim, então INCLUIR. Caso contrário, EXCLUIR.\nTODOS os textos descritivos (reasoning, justificativas) DEVEM ser redigidos em Português do Brasil."
+
+extraction_phase:
+  extraction_fields:
+    - id: "main_topic"
+      description: "Tópico central em uma frase"
+    - id: "methodology"
+      description: "Breve descrição do método mencionado"
