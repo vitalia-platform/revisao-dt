@@ -2,6 +2,8 @@ import os
 import sys
 import csv
 import json
+import yaml
+import re
 from collections import Counter
 from datetime import datetime
 import webbrowser
@@ -17,6 +19,27 @@ def generate_dashboard(log_path=".agent/data_storage/saida/PRISMA_LOG_MASTER.csv
     if not os.path.exists(template_path):
         print(f"Template {template_path} não encontrado.")
         return
+        
+    # Read criteria mapping
+    criteria_map = {}
+    if os.path.exists("criteria_config.yaml"):
+        with open("criteria_config.yaml", "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+            for q in config.get("screening_phase", {}).get("cot_questions", []):
+                criteria_map[q["id"].upper()] = q["question"]
+                
+    # Read methodology anchor texts
+    methodology_texts = {}
+    spec_path = "revisao_pipeline.spec.md"
+    if os.path.exists(spec_path):
+        with open(spec_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            # Extract everything between <!-- BEGIN XYZ --> and <!-- END XYZ -->
+            matches = re.finditer(r"<!-- BEGIN (.*?) -->(.*?)<!-- END \1 -->", content, re.DOTALL)
+            for m in matches:
+                tag = m.group(1).strip()
+                text = m.group(2).strip()
+                methodology_texts[tag] = text
 
     stats = {
         "total": 0,
@@ -45,6 +68,18 @@ def generate_dashboard(log_path=".agent/data_storage/saida/PRISMA_LOG_MASTER.csv
             
             stats["maquinas"][machine] += 1
             
+            cot_tags_raw = row.get("CoT_Tags", "")
+            
+            # Parse CoT Tags into structured format
+            parsed_tags = []
+            tags_matches = re.findall(r"\[(Q\d+):\s*([^\]]+)\]", cot_tags_raw)
+            for q_id, ans in tags_matches:
+                parsed_tags.append({
+                    "id": q_id,
+                    "text": criteria_map.get(q_id, f"Critério {q_id}"),
+                    "answer": ans.strip().upper()
+                })
+            
             art_info = {
                 "Title": row.get("Title", ""),
                 "Authors": row.get("Authors", ""),
@@ -53,7 +88,9 @@ def generate_dashboard(log_path=".agent/data_storage/saida/PRISMA_LOG_MASTER.csv
                 "DOI": row.get("DOI", ""),
                 "Source": row.get("Source", ""),
                 "Reasoning": row.get("Reasoning", ""),
-                "CoT_Tags": row.get("CoT_Tags", "")
+                "CoT_Tags_Raw": cot_tags_raw,
+                "CoT_Tags_Parsed": parsed_tags,
+                "Evidence_Quote": row.get("Evidence_Quote", "")
             }
             
             if "aguardando triagem" in status or status == "pending":
@@ -183,6 +220,10 @@ def generate_dashboard(log_path=".agent/data_storage/saida/PRISMA_LOG_MASTER.csv
     # Inject JSON data for JS interactions
     json_payload = json.dumps(articles_data, ensure_ascii=False)
     html = html.replace("{{ ARTICLES_JSON }}", json_payload)
+    
+    # Inject Methodology JSON
+    methodology_json = json.dumps(methodology_texts, ensure_ascii=False)
+    html = html.replace("{{ METHODOLOGY_JSON }}", methodology_json)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:

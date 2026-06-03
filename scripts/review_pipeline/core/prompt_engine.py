@@ -59,6 +59,7 @@ def build_prompt(
     schema_dict = {
         "cot_analysis": schema_cot_dict,
         "final_decision": "INCLUIR ou EXCLUIR",
+        "evidence_quote": "Cópia exata (ipsis litteris) de 1 a 2 frases do Abstract que formam a 'Arma Fumegante' sustentando sua decisão.",
         "reasoning": "Resumo metodológico da decisão baseada nos critérios e CoT.",
         "extractions": schema_extraction_dict
     }

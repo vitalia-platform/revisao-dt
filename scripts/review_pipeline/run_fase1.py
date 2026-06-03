@@ -141,6 +141,8 @@ def main():
                                 cot_tags.append(f"[{k.upper()}: ?]")
                     cot_tags_str = " ".join(cot_tags)
                     
+                    evidence = res_json.get("evidence_quote", "")
+                    
                     if "INCLUIR" in decision or "INCLUDE" in decision:
                         art["Status"] = "Incluído (Fase 1)"
                         art["Exclusion_Reason"] = ""
@@ -158,8 +160,9 @@ def main():
                         
                     art["Reasoning"] = reasoning
                     art["CoT_Tags"] = cot_tags_str
+                    art["Evidence_Quote"] = evidence
                     if "Reasoning" not in fieldnames:
-                        fieldnames.extend(["Reasoning", "CoT_Tags"])
+                        fieldnames.extend(["Reasoning", "CoT_Tags", "Evidence_Quote"])
                         
                     processed += 1
                     

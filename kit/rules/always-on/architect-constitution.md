@@ -35,7 +35,7 @@ Estas são as **22 diretrizes invioláveis** que governam todo o desenvolvimento
   - _Services:_ Lógica de Negócio Pura.
   - _Clients:_ Comunicação Externa (Ollama, APIs).
   - _Views/Tasks:_ Orquestração.
-  - _Configurações:_ Variáveis, regras de negócio e caminhos (paths) devem vir estritamente de arquivos de configuração (YAML/ENV). O *hardcoding* no código-fonte é terminantemente proibido.
+  - _Configurações:_ Variáveis, regras de negócio e caminhos (paths) devem vir estritamente de arquivos de configuração (YAML/ENV). O _hardcoding_ no código-fonte é terminantemente proibido.
 - **(P12) API-First:** O contrato (DRF Serializers) é a fonte da verdade. O Frontend e o Backend se alinham através dele antes da implementação.
 - **(P13) Serializers Dedicados:** Separar explicitamente `ReadSerializer` (com dados aninhados para exibição) de `WriteSerializer` (com validação estrita para entrada).
 
@@ -55,4 +55,3 @@ Estas são as **22 diretrizes invioláveis** que governam todo o desenvolvimento
   - _Client State:_ Redux Toolkit (Sessão, UI Global).
 - **(P21) Lançamentos Graduais:** Funcionalidades complexas devem ser desenvolvidas atrás de _Feature Flags_ para permitir deploy contínuo sem quebrar a produção.
 - **(P22) Manutenção do Kit de Agentes (Symlinks):** Toda edição estrutural no kit (workflows, rules, skills) deve ser realizada sempre via os symlinks em `.agent/` (ex: `.agent/workflows/`) e de forma agnóstica a caminhos de repositórios específicos. Isso mantém o projeto viável como GitHub Template para futuros trabalhos.
-
