@@ -18,7 +18,7 @@ infrastructure:
   llm_router:
     model_local: "qwen2.5-coder-vitalia:latest"
     model_cloud: "gemini-2.0"
-    ollama_url: "http://192.168.0.254:11434"
+    ollama_url: "${OLLAMA_BASE_URL}"
   embeddings: "nomic-embed-text"
   batch_size: 1000
   data_storage: ".agent/data_storage"
