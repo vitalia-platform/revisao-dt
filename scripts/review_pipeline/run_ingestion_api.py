@@ -195,16 +195,40 @@ def main():
     master_log_path = ".agent/data_storage/saida/PRISMA_LOG_MASTER.csv"
     os.makedirs(os.path.dirname(master_log_path), exist_ok=True)
     
-    deduplicator = Deduplicator(master_log_path)
+    # Lógica de Ingestão e Calibração Dinâmica (0% Hardcode)
+    ingestion_cfg = config.get("ingestion", {})
+    mode = ingestion_cfg.get("mode", "calibration")
+    limit_calib = ingestion_cfg.get("calibration_limit", 50)
+    limit_main = ingestion_cfg.get("main_limit", 1000)
     
-    # Define o limite de amostra fixo por requisição do usuário
-    LIMIT = 50
+    LIMIT = limit_main if mode == "main" else limit_calib
+    print(f"\n[Modo de Ingestão: {mode.upper()}] Limite por base definido para: {LIMIT}")
+    
+    # Limpa o arquivo mestre para não poluir a rodada atual com artigos anteriores
+    if os.path.exists(master_log_path):
+        os.remove(master_log_path)
+        print("    [!] PRISMA_LOG_MASTER.csv anterior limpo para nova rodada.")
+        
+    # Limpa os dados de Auditoria de Triagem (JSONs)
+    audit_dir = ".agent/data_storage/saida/audit"
+    if os.path.exists(audit_dir):
+        import glob
+        for f in glob.glob(os.path.join(audit_dir, "*.json")):
+            try:
+                os.remove(f)
+            except:
+                pass
+        print("    [!] Dados de Auditoria de Triagem limpos para nova rodada.")
     
     # 1. Fetch das bases
     pubmed_articles = fetch_pubmed(query_string, LIMIT)
     openalex_articles = fetch_openalex(query_string, LIMIT)
     
     all_articles = pubmed_articles + openalex_articles
+    
+    
+    # Inicializa deduplicador (agora limpo)
+    deduplicator = Deduplicator(master_log_path)
     
     # 2. Processamento e Deduplicação
     final_list = []
@@ -234,10 +258,9 @@ def main():
         "Full_text_source", "Source", "Machine_ID", "Ingestion_Date"
     ]
     
-    with open(master_log_path, "a", newline="", encoding="utf-8") as f:
+    with open(master_log_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if not file_exists:
-            writer.writeheader()
+        writer.writeheader()
             
         machine_id = os.environ.get("MACHINE_ID", "local")
         today = datetime.now().strftime("%Y-%m-%d")

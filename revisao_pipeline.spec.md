@@ -19,44 +19,44 @@ flowchart TD
     end
 
     %% Fase 0
-    subgraph fase0 [Fase 0: Ingestão API-First]
+    subgraph fase0 [Fase 0: Ingestão & Calibração]
         direction LR
         E[run_ingestion_api.py] -->|Lê query_string| D
-        E -->|eSearch & eFetch| F((PubMed API))
-        E -->|REST API| G((OpenAlex API))
+        E -->|Modo Calibração (50 artigos)| F((APIs Acadêmicas))
         F --> H[Normalização & Deduplicação]
-        G --> H
-        H -->|Gera Master Log| I[(PRISMA_LOG_MASTER.csv)]
+        H -->|Gera Master Log Temporário| I[(PRISMA_LOG_MASTER.csv)]
         I -.->|Status inicial| J([Todos como 'Aguardando Triagem Fase 1'])
     end
 
     %% Fase 1
-    subgraph fase1 [Fase 1: Triagem]
+    subgraph fase1 [Fase 1: Triagem Automatizada]
         direction LR
         I -->|Puxa pendentes| K[run_fase1.py]
-        K -->|Aplica LLM| L{Critérios de Inclusão/Exclusão}
+        K -->|Aplica LLM local| L{Critérios de Inclusão/Exclusão}
         L -->|Sim| M([Status: Incluído Fase 1])
         L -->|Não| N([Status: Excluído Fase 1])
         M --> O[(Atualiza PRISMA_LOG)]
         N --> O
     end
 
-    %% Fase Auditoria
-    subgraph auditoria [Auditoria Visual]
+    %% Fase Auditoria e Loop de Calibração HITL
+    subgraph auditoria [Fase 0.5: Auditoria & Loop de Calibração HITL]
         direction LR
         O -->|Lê CSV e JSONs| P[generate_progress.py]
-        P -->|Gera| Q[PROGRESS.html Dashboard]
-        Q -.->|Human-in-the-Loop| R{Auditor Humano Aprova?}
-        R -->|Ajustes no Prompt| K
-        R -->|Aprovado| S[Avançar para Extração]
+        P -->|Gera visualização| Q[PROGRESS.html Dashboard]
+        Q -.->|Pesquisador avalia precisão (HITL)| R{Amostra está precisa?}
+        R -->|Não: Exporta Feedback JSON| S[IA ajusta prompts no YAML]
+        S -->|Reinicia ciclo limpando logs| E
+        R -->|Sim: Aprovado| T[Muda Ingestão para Modo Principal = 1000]
+        T -->|Ingere base final e roda Triagem real| K
     end
 
     %% Fase 2
     subgraph fase2 [Fase 2: Extração]
         direction LR
-        S --> T[run_fase2_extraction.py]
-        T -->|Busca PDFs / XMLs| U[Extração Estruturada via LLM]
-        U --> V[(Fichamento JSON)]
+        auditoria --> U[run_fase2_extraction.py]
+        U -->|Busca PDFs / XMLs| V[Extração Estruturada via LLM]
+        V --> W[(Fichamento JSON)]
     end
 
     %% Fase 3
@@ -84,34 +84,49 @@ Você definiu a `query_string` no arquivo `criteria_config.yaml`.
 Não há mais a necessidade de acessar os sites, exportar CSVs e colocá-los na pasta `exportacao`. O sistema agora é autônomo.
 <!-- END FASE_IDEACAO -->
 
-### Fase 0: Ingestão API-First (O Nascimento dos Artigos)
+### Fase 0: Ingestão API-First & Calibração Iterativa
 <!-- BEGIN FASE0 -->
-- **Script Alvo:** `scripts/review_pipeline/run_ingestion_api.py`
-- **O que faz:** Ele lê a `query_string` do seu YAML e faz requisições diretas via rede para as APIs do **PubMed** e **OpenAlex**.
-- **Processamento:** Ele padroniza as colunas e remove artigos duplicados usando o DOI dinamicamente.
-- **Saída:** Ele cria e popula diretamente o arquivo mestre `.agent/data_storage/saida/PRISMA_LOG_MASTER.csv`. 
-- **Conceito Chave:** Todo artigo recém-baixado da API entra com o status `"Aguardando Triagem Fase 1"`.
+**O Nascimento dos Dados e a Prova de Conceito (PoC)**
+
+Nesta fase inicial, o sistema não tenta ler milhares de artigos de uma vez. O script `run_ingestion_api.py` opera inicialmente em **Modo de Calibração**, consultando as bases científicas (PubMed, OpenAlex, etc.) de forma controlada para trazer apenas os primeiros 50 artigos mais relevantes de cada fonte.
+
+- **Por que fazemos isso?** Se os critérios de inclusão (prompts) não estiverem perfeitamente alinhados à sua Pergunta Norteadora, rodar milhares de artigos custaria tempo computacional e geraria "lixo" acadêmico.
+- **O que acontece sob o capô:** A IA consome sua `query_string` e faz requisições dinâmicas às APIs, pulando o trabalho braçal de exportar e importar arquivos CSV. Tudo cai em um arquivo unificado chamado `PRISMA_LOG_MASTER.csv`. Cada vez que rodamos esta calibração, o arquivo anterior é limpo para garantir que resíduos não poluam a nova análise.
 <!-- END FASE0 -->
 
-### Fase 1: Triagem (Screening via trAIce)
+### Fase 1: Triagem (Screening Inteligente)
 <!-- BEGIN FASE1 -->
-- **Script Alvo:** `scripts/review_pipeline/run_fase1.py`
-- **O que faz:** Lê o arquivo mestre, filtra quem está "Aguardando", envia para o Ollama local aplicar os critérios do YAML, gera o Raciocínio (Reasoning) com CoT e atualiza o status de volta no CSV para Incluído ou Excluído.
+**A Peneira de Títulos e Resumos (Screening via LLM Local)**
+
+Com a base amostral pronta, o script `run_fase1.py` entra em ação. Ele pega cada artigo "Aguardando Triagem" e o envia para o modelo de inteligência artificial (LLM).
+
+- **O Motor de Decisão (Chain of Thought):** O modelo é forçado a refletir sobre cada pergunta do seu `criteria_config.yaml`. Ele pensa alto (razão) antes de cravar um SIM ou NÃO. Isso se chama cadeia de raciocínio.
+- Se o artigo passar em todas as regras mandatárias, seu status muda para *Incluído Fase 1*. Senão, *Excluído*. O log no PRISMA é imediato.
 <!-- END FASE1 -->
 
-### Fase 1.5: Auditoria & HITL (Human-in-the-Loop)
+### Fase 1.5: Auditoria Visual e Loop HITL (Onde você está agora)
 <!-- BEGIN FASE_AUDITORIA -->
-- **Script Alvo:** `scripts/generate_progress.py`
-- **O que faz:** Renderiza os resultados da triagem em um Dashboard HTML interativo. Permite auditar exatamente as justificativas da IA para refinar os prompts ou critérios antes da fase pesada de leitura de PDFs.
+**A Hora da Verdade: O Feedback Humano no Loop (Human-in-the-Loop)**
+
+Este **Dashboard Interativo** que você está visualizando foi gerado pelo `generate_progress.py`. O objetivo não é apenas mostrar números bonitos, mas sim auditar as decisões da máquina.
+
+- **Sua Ação Necessária (Calibração):** Abra a lista de incluídos ou excluídos. Se notar que a IA tomou uma decisão errada, use os botões **[👍 Incluir]** ou **[👎 Excluir]** ao lado do artigo e escreva uma breve justificativa (ex: "Excluiu errado pois o artigo falava sobre crianças indiretamente").
+- **Retroalimentação:** Ao terminar de revisar a amostra, clique no botão **[📤 Copiar Feedback para IA]** no topo do modal. Cole esse JSON no chat para o agente. A IA usará seus ajustes para reescrever as regras no `criteria_config.yaml`.
+- **Avançando:** Apenas quando a IA acertar quase 100% da amostra calibração, nós ativaremos o "Modo Principal" (Ingestão em Massa, ex: 1000 artigos) para realizar a triagem real definitiva.
 <!-- END FASE_AUDITORIA -->
 
 ### Fase 2: Fichamento / Extração 
 <!-- BEGIN FASE2 -->
-- **Script Alvo:** `scripts/review_pipeline/run_fase2_extraction.py`
-- **O que faz:** Atua exclusivamente sobre os artigos aprovados na Fase 1. Lê o PDF ou XML completo e solicita ao LLM a extração de dados estruturados em JSON respondendo a perguntas metodológicas específicas.
+**Mergulho Profundo: A Leitura Integral**
+
+- Somente os artigos sobreviventes chegam aqui.
+- A máquina usa rastreadores acadêmicos (Unpaywall, PMC, Crossref) para tentar realizar o download automático dos PDFs originais.
+- Um modelo de visão (Vision-Language Model) mais avançado é ativado para ler o documento inteiro e preencher uma matriz de extração JSON (Fichamento Automático), focado nos construtos de *Design Science Research* e *Contexto Pedagógico*.
 <!-- END FASE2 -->
 
 ### Fase 3: Síntese (Finalização)
 <!-- BEGIN FASE3 -->
-- Consome todos os dados da Fase 2 para gerar os resumos finais, tabelas analíticas e os rascunhos do artigo científico final da revisão.
+**Conclusão e Elaboração Científica**
+
+Aqui os fichamentos isolados são unidos. Padrões emergem. Categorias temáticas (como as de Bardin ou Thematic Analysis) são sugeridas e cruzadas com a sua ontologia. Nasce o rascunho do estado da arte da sua revisão.
 <!-- END FASE3 -->

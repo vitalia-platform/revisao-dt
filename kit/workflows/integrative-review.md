@@ -45,6 +45,9 @@ O pesquisador pode aceitar os nomes padrão ou redefinir cada um.
 - **URL da API Ollama local** (ex: `http://ip-do-servidor:11434`)
 - **Modelo de linguagem** (ex: `llama3.2:3b`)
 - **Modelo de embeddings** (ex: `nomic-embed-text`)
+- **Modo de Ingestão inicial**: Calibração (Iterativo)
+- **Limite de Calibração (amostra por base)**: (ex: `50`)
+- **Limite da Extração Principal (pós-calibração)**: (ex: `1000`)
 - **Tamanho do lote** para triagem em massa (ex: `1000`)
 - **Domínios de alto valor**: temas de interesse especial → receberão tag `TRENDING_TOPIC`
 

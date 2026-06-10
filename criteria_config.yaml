@@ -14,6 +14,11 @@ project:
     - "Cocriação Interprofissional"
     - "Educação Interprofissional"
 
+ingestion:
+  mode: "calibration"
+  calibration_limit: 50
+  main_limit: 1000
+
 infrastructure:
   llm_router:
     model_local: "qwen2.5-coder-vitalia:latest"

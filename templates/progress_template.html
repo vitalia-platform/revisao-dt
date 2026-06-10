@@ -190,9 +190,12 @@
                 <div>
                     <h3 class="text-xl font-bold text-gray-800" id="modalTitle">Detalhes</h3>
                 </div>
-                <button onclick="closeModal('dataModal')" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
+                <div class="flex items-center gap-4">
+                    <button id="exportBtn" onclick="exportCalibration()" class="hidden bg-indigo-600 text-white px-3 py-1 rounded text-sm font-bold shadow hover:bg-indigo-700 transition">📤 Copiar Feedback para IA</button>
+                    <button onclick="closeModal('dataModal')" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
             </div>
             
             <div class="bg-white px-6 py-3 border-b border-gray-200 sticky top-0">
@@ -220,11 +223,11 @@
             <div class="p-4 bg-gray-100 flex gap-4 justify-center border-b border-gray-200">
                 <button onclick="openModal('prismaModal', '')" class="px-4 py-2 bg-white border border-gray-300 shadow-sm rounded text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                     <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-                    Visualizar PRISMA (Opção B)
+                    Visualizar PRISMA
                 </button>
                 <button onclick="openModal('kanbanModal', '')" class="px-4 py-2 bg-white border border-gray-300 shadow-sm rounded text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                     <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
-                    Visualizar Kanban (Opção C)
+                    Visualizar Kanban
                 </button>
             </div>
             
@@ -237,7 +240,7 @@
     <!-- 3. Modal PRISMA Dummy -->
     <div id="prismaModal" class="fixed inset-0 bg-gray-900 bg-opacity-[0.8] z-[60] modal items-center justify-center p-4">
         <div class="bg-white rounded-lg p-8 text-center max-w-2xl w-full relative">
-            <h2 class="text-2xl font-bold mb-4">Diagrama PRISMA (Opção B)</h2>
+            <h2 class="text-2xl font-bold mb-4">Diagrama PRISMA</h2>
             <div class="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-10 mb-6">
                 <p class="text-gray-500">Fluxograma Vertical Clássico em desenvolvimento...</p>
             </div>
@@ -248,7 +251,7 @@
     <!-- 4. Modal Kanban Dummy -->
     <div id="kanbanModal" class="fixed inset-0 bg-gray-900 bg-opacity-[0.8] z-[60] modal items-center justify-center p-4">
         <div class="bg-white rounded-lg p-8 text-center max-w-5xl w-full relative">
-            <h2 class="text-2xl font-bold mb-4">Board Metodológico Kanban (Opção C)</h2>
+            <h2 class="text-2xl font-bold mb-4">Board Metodológico Kanban</h2>
             <div class="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-10 mb-6 flex gap-4 h-64">
                 <div class="flex-1 bg-white rounded shadow-sm border border-gray-200 p-4">Ingestão</div>
                 <div class="flex-1 bg-white rounded shadow-sm border border-gray-200 p-4">Triagem</div>
@@ -319,10 +322,18 @@
                                 ${art.DOI ? `<span><a href="https://doi.org/${art.DOI}" target="_blank" class="text-indigo-600 hover:underline font-medium">🔗 DOI Externo</a></span>` : ''}
                             </div>
                             
+                            <!-- HITL Calibration Controls -->
+                            <div class="mb-4 flex gap-2 items-center hitl-controls" data-doi="${art.DOI || art.Title}" data-title="${art.Title.replace(/"/g, '&quot;')}">
+                                <span class="text-xs font-bold text-gray-400 uppercase mr-2">Calibração Humana:</span>
+                                <button onclick="setHitl(this, 'include')" class="px-2 py-1 text-xs font-bold rounded border border-gray-300 hover:bg-green-50 hover:text-green-700 transition">👍 Incluir</button>
+                                <button onclick="setHitl(this, 'exclude')" class="px-2 py-1 text-xs font-bold rounded border border-gray-300 hover:bg-red-50 hover:text-red-700 transition">👎 Excluir</button>
+                                <input type="text" placeholder="Justificativa da calibração (opcional)..." class="hitl-reason flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 hidden" onchange="saveHitl(this)">
+                            </div>
+                            
                             <div class="bg-gray-50 p-4 rounded border border-gray-100">
                                 ${pillsHtml}
                                 ${evidenceHtml}
-                                <p class="article-reasoning text-sm text-gray-700 border-l-2 border-indigo-200 pl-3 leading-relaxed">
+                                <p class="article-reasoning text-xs text-gray-700 border-l-2 border-indigo-200 pl-3 leading-relaxed">
                                     <strong>Raciocínio:</strong> ${art.Reasoning ? art.Reasoning : 'Nenhuma justificativa registrada.'}
                                 </p>
                             </div>
@@ -414,6 +425,49 @@
                 document.body.style.overflow = 'auto';
             }
         });
+
+        // HITL Logic
+        let calibrationData = {};
+
+        function setHitl(btn, action) {
+            let container = btn.closest('.hitl-controls');
+            let input = container.querySelector('.hitl-reason');
+            input.classList.remove('hidden');
+            input.focus();
+            
+            let doi = container.dataset.doi;
+            let title = container.dataset.title;
+            
+            if(!calibrationData[doi]) {
+                calibrationData[doi] = { title: title, action: action, reason: "" };
+            } else {
+                calibrationData[doi].action = action;
+            }
+            
+            // UI Update
+            btn.parentNode.querySelectorAll('button').forEach(b => b.classList.remove('bg-gray-100', 'ring-2', 'ring-indigo-500'));
+            btn.classList.add('bg-gray-100', 'ring-2', 'ring-indigo-500');
+            
+            document.getElementById('exportBtn').classList.remove('hidden');
+        }
+
+        function saveHitl(input) {
+            let container = input.closest('.hitl-controls');
+            let doi = container.dataset.doi;
+            if(calibrationData[doi]) {
+                calibrationData[doi].reason = input.value;
+            }
+        }
+
+        function exportCalibration() {
+            let feedback = Object.keys(calibrationData).map(k => ({doi: k, ...calibrationData[k]}));
+            let jsonStr = JSON.stringify(feedback, null, 2);
+            navigator.clipboard.writeText(jsonStr).then(() => {
+                alert("Feedback copiado para a área de transferência!\n\nCole no chat para o agente ajustar os critérios.");
+            }).catch(err => {
+                alert("Erro ao copiar para a área de transferência. Copie manualmente o seguinte JSON:\n\n" + jsonStr);
+            });
+        }
     </script>
 </body>
 </html>

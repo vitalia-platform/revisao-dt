@@ -6,3 +6,4 @@
 # Ignorar storage de dados da revisão (repositório aninhado isolado)
 .agent/data_storage/
 .agent/data_storage/*
+.DS_Store
