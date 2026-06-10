@@ -219,6 +219,13 @@ def main():
             except:
                 pass
         print("    [!] Dados de Auditoria de Triagem limpos para nova rodada.")
+        
+    # Salvar Snapshot da Configuração para Rastreabilidade (Data Provenance)
+    os.makedirs(audit_dir, exist_ok=True)
+    config_snapshot_path = os.path.join(audit_dir, f"CONFIG_SNAPSHOT_{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.json")
+    with open(config_snapshot_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=4, ensure_ascii=False)
+    print(f"    [!] Fotografia da configuração salva em: {config_snapshot_path}")
     
     # 1. Fetch das bases
     pubmed_articles = fetch_pubmed(query_string, LIMIT)
