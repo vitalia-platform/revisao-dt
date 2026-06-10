@@ -1,6 +1,6 @@
 ---
 description: >
-  Consolida os shards das máquinas e constrói o DASHBOARD.md, gerenciando a concorrência estrita na nuvem.
+  Consolida os shards das máquinas e constrói o README.md do contexto, gerenciando a concorrência estrita na nuvem.
   Pode ser invocado a qualquer momento para ver o estado global do projeto entre máquinas.
 ---
 
@@ -132,14 +132,24 @@ Com o lock confirmado na nuvem, você está seguro para consolidar:
 ```
 Com todos os dados dos shards em mãos:
 
-A) Reconstruir DASHBOARD.md:
-   Substituir completamente o conteúdo com a tabela atualizada:
+A) Reconstruir README.md:
+   Substituir completamente o conteúdo com o seguinte template didático para exibição no Github:
+
+   <!-- .agent/session/README.md | Atualizado em: [TIMESTAMP] -->
+   
+   <div align="center">
+     <h1>🛰️ Centro de Comando (Contexto)</h1>
+     <p><b>Repositório Raiz:</b> <a href="https://github.com/vitalia-platform/revisao-dt">vitalia-platform/revisao-dt</a></p>
+     <p>Este repositório atua como o cérebro distribuído da IA. Ele mantém o estado global, o histórico de sessões e o lock de sincronia entre as máquinas físicas do projeto.</p>
+   </div>
+
+   <br/>
+
+   ## Painel de Máquinas (Shards) Horário Local (GMT-04:00)
 
    | Máquina | Tarefa Atual | Etapas | Status | Último Sync |
    | :--- | :--- | :--- | :--- | :--- |
-   | [dados de cada shard] |
-
-   Atualizar o cabeçalho: <!-- .agent/session/DASHBOARD.md | Atualizado em: [TIMESTAMP] -->
+   | [dados de cada shard (sem fuso na coluna)] |
 
 B) Atualizar CONTEXT.md:
    - Atualizar o cabeçalho com o novo timestamp.
@@ -180,7 +190,7 @@ C) Inserir no topo de SESSION_HISTORY.md (Cronologia Reversa — Regra P4):
 ### Passo 8: Exibição do Dashboard
 
 ```
-Exibir o conteúdo completo do DASHBOARD.md ao usuário no chat.
+Exibir o conteúdo completo do README.md ao usuário no chat.
 Encerrar com a mensagem:
 
    ✅ Consolidação concluída!
