@@ -4,3 +4,8 @@
 .agent/
 .agent/*
 .DS_Store
+
+# Variáveis de Ambiente e Segredos
+.env
+.env.*
+!.env.example

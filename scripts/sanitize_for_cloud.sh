@@ -10,6 +10,18 @@ if [ ! -f .env ]; then
     echo "   Copie o .env.example para .env e preencha suas variáveis locais (IP, emails)."
 fi
 
+if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+    echo "❌ ERRO DE PRIVACIDADE: O arquivo '.env' está sendo rastreado pelo Git e vazará para a nuvem."
+    echo "   Rode 'git rm --cached .env' e garanta que '.env' está no seu .gitignore."
+    exit 1
+fi
+
+if ! grep -q "^\.env" .gitignore 2>/dev/null; then
+    echo "❌ ERRO DE PRIVACIDADE: O arquivo '.env' não está no seu .gitignore."
+    echo "   Adicione '.env' ao seu .gitignore."
+    exit 1
+fi
+
 # 2. Checagem de Hardcoded IPs no config
 if grep -q "192\.168\." criteria_config.yaml 2>/dev/null; then
     echo "❌ ERRO DE SEGURANÇA: Endereço IP local detectado no criteria_config.yaml."
