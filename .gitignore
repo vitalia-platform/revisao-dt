@@ -1,9 +1,6 @@
 
-# Ignorar contexto de sessão da IA (repositório aninhado isolado)
-.agent/session/
-.agent/session/*
-
-# Ignorar storage de dados da revisão (repositório aninhado isolado)
-.agent/data_storage/
-.agent/data_storage/*
+# Ignorar toda a estrutura gerada pelo Agente/Vitalia Kit
+# Isso inclui os repositórios aninhados (session), storages e symlinks locais
+.agent/
+.agent/*
 .DS_Store
