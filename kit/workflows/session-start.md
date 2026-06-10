@@ -36,6 +36,15 @@ $ bash .agent/scripts/session-resolve.sh
 Aguarde a resolução antes de prosseguir.
 ```
 
+### Passo 1.5: Sincronizar Base de Dados (Storage)
+
+Para garantir que não haja conflito em `PRISMA_LOG_MASTER.csv` e dados brutos:
+```
+$ bash kit/scripts/data-sync.sh --pull
+```
+
+---
+
 ### Passo 2: Localizar contexto
 
 ```

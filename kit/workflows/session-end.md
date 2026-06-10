@@ -103,6 +103,16 @@ Esta é a fase central do encerramento. A IA para, pensa e pergunta.
 
 ---
 
+### 🗄️ Fase 3.5 — Sincronização de Dados (Storage)
+
+```
+1. Fazer o commit e push autônomo dos arquivos de dados (Tri-Git):
+   $ bash kit/scripts/data-sync.sh --push
+   → O script usará 'lsof' para garantir que os dados estão livres antes de subir.
+```
+
+---
+
 ### 🗂️ Fase 4 — Gravação do Shard Local
 
 Com o resumo aprovado pelo usuário na Fase 2:
