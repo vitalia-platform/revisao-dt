@@ -3,6 +3,8 @@
 # Isso inclui os repositórios aninhados (session), storages e symlinks locais
 .agent/
 .agent/*
+.specify/*
+.specify
 .DS_Store
 
 # Variáveis de Ambiente e Segredos
@@ -28,3 +30,6 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Vitalia Spec Kit — contexto de sessão da IA (repo Git separado)
+.specify/memory/session/
