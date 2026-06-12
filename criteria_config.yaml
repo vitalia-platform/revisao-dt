@@ -21,9 +21,22 @@ ingestion:
 
 infrastructure:
   llm_router:
+    # Comportamento de Roteamento
+    backend: "local"                 # Opções: "local", "cloud"
+    strategy: "local_first"          # Opções: "local_first", "strict"
+
+    # Backend Local (Ollama)
     model_local: "qwen2.5-coder-vitalia:latest"
+    ollama_url: "${OLLAMA_BASE_URL}" # Lida a partir do .env
+    timeout_seconds: 1200
+    max_retries: 3
+    context_window: 65536
+    ping_timeout: 5.0
+
+    # Backend Nuvem (Fallback/Cloud)
+    provider_cloud: "gemini"
     model_cloud: "gemini-2.0"
-    ollama_url: "${OLLAMA_BASE_URL}"
+    api_key_cloud: "${CLOUD_LLM_API_KEY}" # Lida a partir do .env
   embeddings: "nomic-embed-text"
   batch_size: 1000
   data_storage: ".agent/data_storage"

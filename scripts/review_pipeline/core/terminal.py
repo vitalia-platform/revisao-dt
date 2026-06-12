@@ -105,104 +105,61 @@ def handle_error_menu(title, error, default_action="2", timeout=120, phase_label
                     if ch2 == '[A': current_idx = (current_idx - 1) % len(options)
                     elif ch2 == '[B': current_idx = (current_idx + 1) % len(options)
                 elif ch == '\n':
+                    sys.stdout.write("\n")
                     return options[current_idx], False
     finally:
         termios.tcsetattr(_terminal_fd, termios.TCSADRAIN, _terminal_old_settings)
         _terminal_fd = None
         _terminal_old_settings = None
         
+    sys.stdout.write("\n")
     return options[current_idx], True
 
 
-class RichDashboard:
-    """Componente de UI Unificado com Rich Dashboard para visualizações premium de terminal."""
-    def __init__(self, title: str, total: int, console_title: str = "Console de Auditoria (trAIce)", stats_title: str = "Estatísticas da Sessão"):
-        if not _RICH_AVAILABLE:
-            raise RuntimeError("[ERRO] Biblioteca rich não está disponível.")
-        self.title = title
-        self.total = total
-        self.console_title = console_title
-        self.stats_title = stats_title
-        self.current = 0
-        self.success = 0
-        self.fail = 0
-        self.sources = {}
-        self.logs = []
-        self.console = Console()
-        self.progress_bar = Progress(
-            TextColumn("[progress.percentage]{task.percentage:>3.1f}%"),
-            BarColumn(),
-            TextColumn("({task.completed}/{task.total})"),
-            TimeElapsedColumn(),
-            TimeRemainingColumn(),
-            expand=True
-        )
-        self.task_id = self.progress_bar.add_task("Running", total=total)
-        self.live = None
+def print_section_header(title: str):
+    if _RICH_AVAILABLE:
+        from rich.console import Console
+        from rich.panel import Panel
+        Console().print(Panel(f"[bold cyan]{title}[/bold cyan]", style="blue"))
+    else:
+        print(f"\n{'='*60}\n{title}\n{'='*60}\n")
 
-    def add_log(self, msg: str, max_logs: int = 15):
-        ts = time.strftime("%H:%M:%S")
-        self.logs.append(f"[[dim]{ts}[/dim]] {msg}")
-        if len(self.logs) > max_logs:
-            self.logs.pop(0)
-        self.update()
+def show_progress_bar(current: int, total: int, success: int = 0, skipped: int = 0, erros: int = 0, title: str = ""):
+    pct = (current / total) * 100 if total > 0 else 0
+    status = f"[{current}/{total} | {pct:.1f}%]"
+    if title:
+        status += f" {title[:60]}..."
+    
+    if _RICH_AVAILABLE:
+        from rich.console import Console
+        Console().print(f"[bold blue]{status}[/bold blue] (✓: {success} | ⏭: {skipped} | ✗: {erros})")
+    else:
+        print(status)
 
-    def increment_success(self, source: str = None):
-        self.current += 1
-        self.success += 1
-        if source:
-            self.sources[source] = self.sources.get(source, 0) + 1
-        self.progress_bar.advance(self.task_id)
-        self.update()
+def print_step(title: str):
+    if _RICH_AVAILABLE:
+        from rich.console import Console
+        Console().print(f"  [cyan]Analisando:[/cyan] {title}")
+    else:
+        print(f"  Analisando: {title}")
 
-    def increment_fail(self, source: str = "Falhas"):
-        self.current += 1
-        self.fail += 1
-        if source:
-            self.sources[source] = self.sources.get(source, 0) + 1
-        self.progress_bar.advance(self.task_id)
-        self.update()
+def print_success(msg: str):
+    if _RICH_AVAILABLE:
+        from rich.console import Console
+        Console().print(f"    [green]✔ {msg}[/green]")
+    else:
+        print(f"    ✔ {msg}")
 
-    def generate_layout(self) -> Layout:
-        layout = Layout()
-        layout.split_column(
-            Layout(name="header", size=3),
-            Layout(name="main", size=8),
-            Layout(name="footer")
-        )
+def print_error(msg: str):
+    if _RICH_AVAILABLE:
+        from rich.console import Console
+        Console().print(f"    [red]✘ {msg}[/red]")
+    else:
+        print(f"    ✘ {msg}")
         
-        layout["header"].update(Panel(f"[bold cyan]{self.title}[/bold cyan] - {self.current}/{self.total} Processados", style="blue"))
-        
-        stats_table = Table(show_header=True, header_style="bold magenta", expand=True)
-        stats_table.add_column("Métrica")
-        stats_table.add_column("Contagem", justify="right")
-        
-        for src, count in sorted(self.sources.items(), key=lambda x: -x[1]):
-            stats_table.add_row(src, str(count))
-            
-        stats_table.add_row("[bold green]Total Incluídos[/bold green]", f"[bold green]{self.success}[/bold green]")
-        stats_table.add_row("[bold red]Total Excluídos[/bold red]", f"[bold red]{self.fail}[/bold red]")
-        
-        layout["main"].split_row(
-            Layout(Panel(stats_table, title=f"[yellow]{self.stats_title}[/yellow]")),
-            Layout(Panel(self.progress_bar, title="[yellow]Progresso Global[/yellow]"))
-        )
-        
-        logs_text = "\n".join(self.logs)
-        layout["footer"].update(Panel(logs_text, title=f"[green]{self.console_title}[/green]", subtitle="Aperte Ctrl+C para parada segura"))
-        
-        return layout
-
-    def __enter__(self):
-        self.live = Live(self.generate_layout(), refresh_per_second=4, console=self.console)
-        self.live.start()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.live:
-            self.live.stop()
-            self.live = None
-
-    def update(self):
-        if self.live:
-            self.live.update(self.generate_layout())
+def print_warning(msg: str):
+    if _RICH_AVAILABLE:
+        from rich.console import Console
+        Console().print(f"    [yellow]⚠️ {msg}[/yellow]")
+    else:
+        print(f"    ⚠️ {msg}")

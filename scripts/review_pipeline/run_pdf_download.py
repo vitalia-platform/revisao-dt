@@ -1,4 +1,4 @@
-# scripts/review_pipeline/run_pdf_download.py | Atualizado em: 03-06-2026 12:02:36(GMT-04:00)
+# scripts/review_pipeline/run_pdf_download.py | Atualizado em: 11-06-2026 08:00:00(GMT-04:00)
 """
 run_pdf_download.py — Recuperador Híbrido de Texto Completo (XML > PDF)
 
@@ -18,9 +18,17 @@ import time
 # Garante que o pacote core seja encontrado
 sys.path.insert(0, os.path.dirname(__file__))
 
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
 from core.config_manager import load_config
 from core.ingestion.normalizer import normalize_doi
 from core.http_client import RobustHTTPClient
+from core.auditor import ReviewAuditor
+from core.state_manager import StateManager
+from core import terminal
+from scripts.generate_live_dashboard import build_dashboard
 
 def sanitize_filename(filename: str) -> str:
     filename = re.sub(r"[^\w\s-]", "", filename)
@@ -89,7 +97,7 @@ def main():
     config = load_config(args.config)
     data_storage = config.get("infrastructure", {}).get("data_storage", ".agent/data_storage")
     
-    prisma_log_path = os.path.join(data_storage, "saida", "PRISMA_LOG.csv")
+    prisma_log_path = os.path.join(data_storage, "saida", "PRISMA_LOG_MASTER.csv")
     pdf_dir = os.path.join(data_storage, "fichamentos", "pdfs")
     xml_dir = os.path.join(data_storage, "fichamentos", "xmls")
     
@@ -97,14 +105,15 @@ def main():
     os.makedirs(xml_dir, exist_ok=True)
     
     if not os.path.exists(prisma_log_path):
-        print(f"\033[91m[ERRO] PRISMA_LOG.csv não encontrado.\033[0m")
+        print(f"\033[91m[ERRO] PRISMA_LOG_MASTER.csv não encontrado.\033[0m")
         sys.exit(1)
         
     approved_articles = []
     with open(prisma_log_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            if row.get("Status", "").strip() == "Incluido Fase 1":
+            status = row.get("Status", "").strip().lower()
+            if "inclu" in status and "fase 1" in status:
                 approved_articles.append(row)
                 
     total_approved = len(approved_articles)
@@ -132,58 +141,90 @@ def main():
     success_downloads = []
     failed_downloads = []
     client = RobustHTTPClient()
+    auditor = ReviewAuditor(base_output_dir=os.path.join(data_storage, "saida", "auditoria"))
+    def update_dashboards():
+        try:
+            from scripts.generate_live_dashboard import build_dashboard as build_live_dashboard
+            from scripts.generate_progress import generate_dashboard as build_progress_dashboard
+            build_live_dashboard()
+            build_progress_dashboard()
+        except Exception as e:
+            print(f"Erro ao atualizar dashboard: {e}")
+
+    state_mgr = StateManager(on_event_callback=update_dashboards)
     
-    print(f"\n\033[94m  FASE 2 — RECUPERAÇÃO HÍBRIDA XML/PDF ({total_approved} artigo(s))\033[0m\n")
+    
+    terminal.print_section_header(f"FASE 2a — RECUPERAÇÃO HÍBRIDA XML/PDF ({total_approved} artigo(s))")
+    state_mgr.set_active_state("fase2a_download", "Fase 2a: Download de PDFs", total_approved, current_task="Preparando Downloads...")
 
     for idx, article in enumerate(approved_articles, 1):
+        terminal.show_progress_bar(idx, total_approved, success=len(success_downloads), skipped=0, erros=len(failed_downloads))
         title = article.get("Title", "").strip()
         doi = normalize_doi(article.get("DOI", "")).strip()
         base_name = generate_base_filename(article)
+        item_start_time = time.time()
         
         xml_save_path = os.path.join(xml_dir, base_name + ".xml")
         pdf_save_path = os.path.join(pdf_dir, base_name + ".pdf")
         
-        print(f"[{idx}/{total_approved}] {title[:70]}...")
+        terminal.print_step(title[:60] + "...")
+        state_mgr.update_state(current_task=f"Tentando baixar: {title[:50]}...")
         
         if os.path.exists(xml_save_path) and os.path.getsize(xml_save_path) > 1000:
-            print("  \033[92m✔ XML já existe localmente.\033[0m")
+            terminal.print_success("XML já existe localmente.")
             success_downloads.append((article, base_name + ".xml"))
             update_map_log(title, doi, base_name + ".xml", "Local/XML", "Downloaded", "None")
+            lat = round(time.time() - item_start_time, 2)
+            auditor.save_inference_shard(phase=20, item_id=base_name, payload={"article_metadata": article, "status": "SUCCESS", "source": "Local/XML", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "inference_metrics": {"latency_seconds": lat}})
+            state_mgr.update_state(processed=1, skipped=1)
             continue
         if os.path.exists(pdf_save_path) and os.path.getsize(pdf_save_path) > 10000:
-            print("  \033[92m✔ PDF já existe localmente.\033[0m")
+            terminal.print_success("PDF já existe localmente.")
             success_downloads.append((article, base_name + ".pdf"))
             update_map_log(title, doi, base_name + ".pdf", "Local/PDF", "Downloaded", "None")
+            lat = round(time.time() - item_start_time, 2)
+            auditor.save_inference_shard(phase=20, item_id=base_name, payload={"article_metadata": article, "status": "SUCCESS", "source": "Local/PDF", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "inference_metrics": {"latency_seconds": lat}})
+            state_mgr.update_state(processed=1, skipped=1)
             continue
             
         if not doi:
-            print("  \033[93m[AVISO] Sem DOI. Download manual.\033[0m")
+            terminal.print_warning("Sem DOI. Download manual.")
             failed_downloads.append((article, "Sem DOI"))
             update_map_log(title, doi, "", "None", "Pending", "DOI malformed")
+            lat = round(time.time() - item_start_time, 2)
+            auditor.save_inference_shard(phase=20, item_id=base_name, payload={"article_metadata": article, "status": "FAIL", "error": "Sem DOI", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "inference_metrics": {"latency_seconds": lat}})
+            state_mgr.update_state(processed=1, fails=1)
             continue
             
-        print("  → Buscando XML nativo (EuropePMC)...")
         xml_ok, xml_err = fetch_europepmc_xml(doi, client, xml_save_path)
         if xml_ok:
-            print(f"  \033[92m✔ Download XML concluído.\033[0m")
+            terminal.print_success("Download XML concluído (EuropePMC).")
             success_downloads.append((article, base_name + ".xml"))
             update_map_log(title, doi, base_name + ".xml", "EuropePMC/XML", "Downloaded", "None")
+            lat = round(time.time() - item_start_time, 2)
+            auditor.save_inference_shard(phase=20, item_id=base_name, payload={"article_metadata": article, "status": "SUCCESS", "source": "EuropePMC/XML", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "inference_metrics": {"latency_seconds": lat}})
+            state_mgr.update_state(processed=1, success=1)
             time.sleep(1.0)
             continue
             
-        print(f"  → Buscando PDF aberto (OpenAlex)...")
         pdf_ok, pdf_err = fetch_openalex_pdf(doi, client, pdf_save_path, args.email)
         if pdf_ok:
-            print(f"  \033[92m✔ Download PDF concluído.\033[0m")
+            terminal.print_success("Download PDF concluído (OpenAlex).")
             success_downloads.append((article, base_name + ".pdf"))
             update_map_log(title, doi, base_name + ".pdf", "OpenAlex/PDF", "Downloaded", "None")
+            lat = round(time.time() - item_start_time, 2)
+            auditor.save_inference_shard(phase=20, item_id=base_name, payload={"article_metadata": article, "status": "SUCCESS", "source": "OpenAlex/PDF", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "inference_metrics": {"latency_seconds": lat}})
+            state_mgr.update_state(processed=1, success=1)
             time.sleep(1.0)
             continue
             
         last_error = f"XML: {xml_err} | PDF: {pdf_err}"
-        print(f"  \033[91m✘ Falha: {last_error[:80]}...\033[0m")
+        terminal.print_error(f"Falha no download: {last_error[:80]}...")
         failed_downloads.append((article, last_error))
         update_map_log(title, doi, "", "None", "Pending", last_error)
+        lat = round(time.time() - item_start_time, 2)
+        auditor.save_inference_shard(phase=20, item_id=base_name, payload={"article_metadata": article, "status": "FAIL", "error": last_error, "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"), "inference_metrics": {"latency_seconds": lat}})
+        state_mgr.update_state(processed=1, fails=1)
 
     failures_report_path = os.path.join(data_storage, "saida", "FALHAS_DOWNLOAD_MANUAL.md")
     with open(failures_report_path, "w", encoding="utf-8") as rf:
@@ -199,6 +240,7 @@ def main():
             doi_link = f"[doi](https://doi.org/{doi})" if doi else ""
             rf.write(f"| {idx} | {title} | {authors.split(',')[0]} ({year}) | {doi_link} | `{expected_name}` | {reason} |\n")
 
+    state_mgr.update_state(finish=True)
     print(f"\n\033[92m  SUCESSO: {len(success_downloads)} | FALHAS: {len(failed_downloads)}\033[0m\n")
 
 if __name__ == "__main__":

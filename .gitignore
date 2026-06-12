@@ -9,3 +9,22 @@
 .env
 .env.*
 !.env.example
+# Ignorar contexto de sessão da IA (repósitorio aninhado isolado)
+.agent/session/
+.agent/session/*
+
+# Ignorar storage de dados da revisão (repositório aninhado isolado)
+.agent/data_storage/
+.agent/data_storage/*
+
+# Ignorar ambientes virtuais
+.venv
+venv
+
+# Ignorar arquivos Python compilados e de cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/

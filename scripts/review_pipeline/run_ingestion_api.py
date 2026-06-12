@@ -4,12 +4,27 @@ import yaml
 import json
 import requests
 import csv
+import shutil
+import argparse
 import urllib.parse
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Any
 
-# Garante import do módulo core local
+# <!-- scripts/review_pipeline/run_ingestion_api.py | Atualizado em: 11-06-2026 08:00:00(GMT-04:00) -->
+
+# Adiciona diretório scripts ao path para imports
 sys.path.insert(0, os.path.dirname(__file__))
 from core.deduplicator import Deduplicator, normalize_doi
+from core.auditor import ReviewAuditor
+from core.state_manager import StateManager
+
+# Adiciona o diretório raiz para importar o dashboard
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+from scripts.generate_live_dashboard import build_dashboard
+from core import terminal
 
 def load_config(config_path="criteria_config.yaml"):
     with open(config_path, "r", encoding="utf-8") as f:
@@ -180,20 +195,42 @@ def fetch_openalex(query: str, limit: int = 50):
         print(f"    [ERRO] OpenAlex falhou: {e}")
         return []
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fase 0 - Ingestão de API")
+    parser.add_argument("--config", default="./criteria_config.yaml")
+    return parser.parse_args()
+
 def main():
+    args = parse_args()
+    config = load_config(args.config)
     print("==================================================")
     print(" INGESTÃO API-FIRST — REVISÃO DT")
     print("==================================================")
     
-    config = load_config()
     query_string = config.get("project", {}).get("query_string", "")
     
     if not query_string:
         print("[ERRO] query_string não definida no criteria_config.yaml")
         sys.exit(1)
         
-    master_log_path = ".agent/data_storage/saida/PRISMA_LOG_MASTER.csv"
-    os.makedirs(os.path.dirname(master_log_path), exist_ok=True)
+    data_storage = config.get("infrastructure", {}).get("data_storage", ".agent/data_storage")
+    output_dir = os.path.join(data_storage, "saida")
+    master_log_path = os.path.join(output_dir, "PRISMA_LOG_MASTER.csv")
+    csv_path = master_log_path
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Auditoria config
+    auditor = ReviewAuditor(base_output_dir=os.path.join(data_storage, "saida", "auditoria"))
+    def update_dashboards():
+        try:
+            from scripts.generate_live_dashboard import build_dashboard as build_live_dashboard
+            from scripts.generate_progress import generate_dashboard as build_progress_dashboard
+            build_live_dashboard()
+            build_progress_dashboard()
+        except Exception as e:
+            pass
+
+    state_mgr = StateManager(on_event_callback=update_dashboards)
     
     # Lógica de Ingestão e Calibração Dinâmica (0% Hardcode)
     ingestion_cfg = config.get("ingestion", {})
@@ -210,10 +247,10 @@ def main():
         print("    [!] PRISMA_LOG_MASTER.csv anterior limpo para nova rodada.")
         
     # Limpa os dados de Auditoria de Triagem (JSONs)
-    audit_dir = ".agent/data_storage/saida/audit"
+    audit_dir = ".agent/data_storage/saida/auditoria"
     if os.path.exists(audit_dir):
         import glob
-        for f in glob.glob(os.path.join(audit_dir, "*.json")):
+        for f in glob.glob(os.path.join(audit_dir, "**/*.json"), recursive=True):
             try:
                 os.remove(f)
             except:
@@ -227,6 +264,8 @@ def main():
         json.dump(config, f, indent=4, ensure_ascii=False)
     print(f"    [!] Fotografia da configuração salva em: {config_snapshot_path}")
     
+    state_mgr.set_active_state("fase0_ingestion", "Fase 0: Ingestão de API", LIMIT, current_task="Buscando artigos via PubMed e OpenAlex...")
+    
     # 1. Fetch das bases
     pubmed_articles = fetch_pubmed(query_string, LIMIT)
     openalex_articles = fetch_openalex(query_string, LIMIT)
@@ -236,6 +275,8 @@ def main():
     
     # Inicializa deduplicador (agora limpo)
     deduplicator = Deduplicator(master_log_path)
+    
+    state_mgr.update_state(current_task="Deduplicando artigos e preparando Master Log...")
     
     # 2. Processamento e Deduplicação
     final_list = []
@@ -255,6 +296,10 @@ def main():
     print(f"Total coletado: {len(all_articles)}")
     print(f"Duplicatas removidas: {duplicatas_count}")
     print(f"Artigos válidos para o Master Log: {len(final_list)}")
+
+    # Informa ao StateManager o total real de artigos (pós-deduplicação).
+    # Isso elimina o hardcode na View que antes mascarava a barra de progresso da Fase 0.
+    state_mgr.update_target(len(final_list))
     
     # 3. Gravar no Master Log
     file_exists = os.path.exists(master_log_path)
@@ -272,7 +317,7 @@ def main():
         machine_id = os.environ.get("MACHINE_ID", "local")
         today = datetime.now().strftime("%Y-%m-%d")
         
-        for art in final_list:
+        for idx, art in enumerate(final_list, 1):
             art["Status"] = "Aguardando Triagem Fase 1"
             art["Exclusion_Reason"] = ""
             art["PDF_status"] = "pending"
@@ -281,7 +326,21 @@ def main():
             art["Ingestion_Date"] = today
             writer.writerow(art)
             
-    print(f"\n[SUCESSO] PRISMA_LOG_MASTER.csv atualizado em {master_log_path}.")
-
+            # Emitir evento para o Dashboard Web
+            auditor.save_inference_shard(phase=0, item_id=f"ingest_{idx}_{art.get('Source', 'API')}", payload={
+                "article_metadata": {
+                    "title": art.get("Title", ""),
+                    "doi": art.get("DOI", ""),
+                    "source": art.get("Source", ""),
+                    "year": art.get("Year", "")
+                },
+                "status": "INGESTED",
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            
+    print(f"    [!] O arquivo PRISMA_LOG_MASTER.csv foi atualizado com sucesso em {master_log_path}")
+    
+    state_mgr.update_state(processed=len(final_list), success=len(final_list), current_task="Ingestão Finalizada.", finish=True)
+    
 if __name__ == "__main__":
     main()

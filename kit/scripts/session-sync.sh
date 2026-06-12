@@ -13,8 +13,8 @@
 
 set -e
 
-KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."/.. >/dev/null 2>&1 && pwd)/kit"
-SESSION_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)/session"
+KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+SESSION_DIR="$(cd "${KIT_DIR}/.." >/dev/null 2>&1 && pwd)/.agent/session"
 CONSOLIDATE_SCRIPT="${KIT_DIR}/scripts/session-consolidate.py"
 COMMIT_MSG="${1:-"chore: session end [$(date +'%Y-%m-%d %H:%M')]"}"
 

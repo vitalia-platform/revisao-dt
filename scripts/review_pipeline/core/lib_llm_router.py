@@ -28,25 +28,31 @@ class LLMRouter:
         self.cloud_cfg = self.router_cfg
 
     def check_ollama_alive(self, base_url):
+        ping_timeout = self.router_cfg.get("ping_timeout", 5.0)
         try:
-            response = requests.get(base_url, timeout=2.0)
+            response = requests.get(base_url, timeout=ping_timeout)
             return response.status_code == 200
         except requests.exceptions.RequestException:
             return False
 
-    def query_ollama(self, prompt, model, base_url, json_format=True, max_retries=3):
+    def query_ollama(self, prompt, model, base_url, json_format=True, options=None):
         url = f"{base_url.rstrip('/')}/api/generate"
+        max_retries = self.router_cfg.get("max_retries", 3)
+        timeout_seconds = self.router_cfg.get("timeout_seconds", 300)
+        
         payload = {
             "model": model,
             "prompt": prompt,
             "stream": False
         }
+        if options:
+            payload["options"] = options
         if json_format:
             payload["format"] = "json"
 
         for attempt in range(1, max_retries + 1):
             try:
-                resp = requests.post(url, json=payload, timeout=120)
+                resp = requests.post(url, json=payload, timeout=timeout_seconds)
                 if resp.status_code == 200:
                     data = resp.json()
                     response_text = data.get("response", "{}")
@@ -58,7 +64,9 @@ class LLMRouter:
                     
                     if json_format:
                         try:
-                            return json.loads(response_text), "local", model, tokens_dict
+                            import re
+                            cleaned_text = re.sub(r"^```(?:json)?|```$", "", response_text.strip(), flags=re.MULTILINE).strip()
+                            return json.loads(cleaned_text), "local", model, tokens_dict
                         except json.JSONDecodeError:
                             return {"error": "Invalid JSON from Ollama", "raw": response_text}, "local", model, tokens_dict
                     return response_text, "local", model, tokens_dict
@@ -78,7 +86,7 @@ class LLMRouter:
         # To be fully implemented when cloud synthesis is needed.
         return {"error": "Cloud execution not fully implemented in script yet"}, "cloud", model, {}
 
-    def generate(self, phase, prompt, json_format=True):
+    def generate(self, phase, prompt, json_format=True, options=None):
         """
         Roteia o prompt com base na configuração da fase e disponibilidade.
         Retorna: (resultado, backend_usado, modelo_usado)
@@ -86,28 +94,33 @@ class LLMRouter:
         backend = self.router_cfg.get("backend", "local")
         model = self.router_cfg.get("model_local", "qwen2.5-coder-vitalia:latest")
 
-        local_base_url = self.router_cfg.get("ollama_url", os.environ.get("OLLAMA_BASE_URL", "http://192.168.0.254:11434"))
+        local_base_url = os.path.expandvars(self.router_cfg.get("ollama_url", os.environ.get("OLLAMA_BASE_URL", "http://192.168.0.254:11434")))
+        
+        # Se options não foi fornecido no script, lê do yaml (com default padrão de fallback caso ambos falhem)
+        if options is None:
+            ctx_window = self.router_cfg.get("context_window", 8192)
+            options = {"num_ctx": ctx_window}
 
         if backend == "local" or (self.strategy == "local_first"):
             if self.check_ollama_alive(local_base_url):
-                res, b_used, m_used, t_dict = self.query_ollama(prompt, model, local_base_url, json_format)
+                res, b_used, m_used, t_dict = self.query_ollama(prompt, model, local_base_url, json_format, options=options)
                 if res is not None:
                     return res, b_used, m_used, t_dict
             
             # Se falhou e estrategia é local_first, tenta fallback
             if self.strategy == "local_first":
                 print("    [LLMRouter] ⚠️ Local falhou. Tentando fallback para Cloud.")
-                cloud_model = self.cloud_cfg.get("model", "gemini-2.0")
-                cloud_key = self.cloud_cfg.get("api_key", os.environ.get("CLOUD_LLM_API_KEY", ""))
-                return self.query_cloud(prompt, cloud_model, cloud_key, self.cloud_cfg.get("provider", "gemini"), json_format)
+                cloud_model = self.cloud_cfg.get("model_cloud", "gemini-2.0")
+                cloud_key = self.cloud_cfg.get("api_key_cloud", "")
+                return self.query_cloud(prompt, cloud_model, cloud_key, self.cloud_cfg.get("provider_cloud", "gemini"), json_format)
 
         elif backend == "cloud":
-            cloud_model = self.cloud_cfg.get("model", "gemini-2.0")
-            cloud_key = self.cloud_cfg.get("api_key", os.environ.get("CLOUD_LLM_API_KEY", ""))
+            cloud_model = self.cloud_cfg.get("model_cloud", "gemini-2.0")
+            cloud_key = self.cloud_cfg.get("api_key_cloud", "")
             if not cloud_key:
                 print("    [LLMRouter] ⚠️ Cloud solicitado mas chave ausente. Fallback para Local.")
-                return self.query_ollama(prompt, model, local_base_url, json_format)
+                return self.query_ollama(prompt, model, local_base_url, json_format, options=options)
                 
-            return self.query_cloud(prompt, cloud_model, cloud_key, self.cloud_cfg.get("provider", "gemini"), json_format)
+            return self.query_cloud(prompt, cloud_model, cloud_key, self.cloud_cfg.get("provider_cloud", "gemini"), json_format)
 
         return None, "none", "none", {}

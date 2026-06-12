@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Pipeline Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .scrolling-container { max-height: 400px; overflow-y: auto; }
+        .event-card { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .event-card { transition: transform 0.2s; }
+        .event-card:hover { transform: translateX(2px); border-color: #6366f1; }
+        
+        .macro-progress-bar {
+            width: 0%;
+            transition: width 2s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+        .node-circle {
+            transition: all 0.3s ease; cursor: pointer;
+        }
+        .node-circle:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 10px rgba(79, 70, 229, 0.5);
+        }
+        .modal { display: none; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="mb-6 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">Live Tracker</h1>
+                    <p class="text-sm text-gray-500 mt-1 uppercase font-semibold">{{ CURRENT_PHASE_NAME }}</p>
+                </div>
+                <div class="text-right flex items-center gap-3">
+                    <div class="bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded text-xs font-bold font-mono shadow-sm">
+                        ETA: {{ ETA_TIME }}
+                    </div>
+                    <button onclick="document.getElementById('history-modal').classList.add('active')" class="px-3 py-1.5 text-sm bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded border border-indigo-200 shadow-sm transition-colors font-medium">Ver Histórico</button>
+                    <div class="flex flex-col text-right">
+                        <p class="text-xs text-gray-400 uppercase tracking-wide">Última Atualização</p>
+                        <p class="font-bold text-gray-700 font-mono text-sm">{{ LAST_UPDATED }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mapa de Metrô (Pipeline Metodológico) -->
+            <div class="relative w-full mt-6 pb-2">
+                <!-- A linha fica travada no centro do círculo (top 10px pois h-5 = 20px) -->
+                <div class="absolute top-[10px] left-0 w-full h-2 bg-gray-200 rounded-full -translate-y-1/2 z-0"></div>
+                <div class="absolute top-[10px] left-0 h-2 bg-indigo-600 rounded-full -translate-y-1/2 z-10 macro-progress-bar" data-target-width="{{ MACRO_PHASE_WIDTH }}"></div>
+                
+                <!-- Informações Globais da Pipeline nas pontas -->
+                <div class="absolute top-[10px] left-0 w-full flex justify-between px-1 -translate-y-6 text-[10px] font-mono text-gray-500 font-semibold z-0">
+                    <span>Início: {{ GLOBAL_START_TIME }}</span>
+                    <span id="global-timer" data-start="{{ GLOBAL_START_TS }}" class="text-indigo-600">Total: 00:00:00</span>
+                </div>
+                
+                <!-- flex items-start para que os círculos fiquem alinhados no topo -->
+                <div class="relative z-20 flex justify-between items-start w-full px-2">
+                    <div class="flex flex-col items-center group cursor-pointer" onclick="openMethodologyModal(1)">
+                        <div class="w-5 h-5 bg-indigo-600 rounded-full border-4 border-white shadow node-circle"></div>
+                        <span class="text-xs font-bold text-indigo-700 mt-2 whitespace-nowrap">Fase 0: Ingestão</span>
+                        <div class="mt-1 bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-mono shadow-sm">{{ T_DUR_F0 }}</div>
+                    </div>
+                    
+                    <div class="flex flex-col items-center group cursor-pointer" onclick="openMethodologyModal(2)">
+                        <div class="w-5 h-5 rounded-full border-4 border-white shadow node-circle {{ MACRO_PHASE_2_COLOR }}"></div>
+                        <span class="text-xs font-bold mt-2 whitespace-nowrap {{ MACRO_PHASE_2_TEXT }}">Fase 1: Triagem</span>
+                        <div class="mt-1 bg-gray-50 border border-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-mono shadow-sm {{ MACRO_PHASE_2_BADGE }}">{{ T_DUR_F1 }}</div>
+                    </div>
+                    
+                    <div class="flex flex-col items-center group cursor-pointer" onclick="openMethodologyModal(3)">
+                        <div class="w-5 h-5 rounded-full border-4 border-white shadow node-circle {{ MACRO_PHASE_1_5_COLOR }}"></div>
+                        <span class="text-xs font-bold mt-2 whitespace-nowrap {{ MACRO_PHASE_1_5_TEXT }}">Fase 1.5: Auditoria</span>
+                        <div class="mt-1 bg-gray-50 border border-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-mono shadow-sm {{ MACRO_PHASE_1_5_BADGE }}">{{ T_DUR_F1_5 }}</div>
+                    </div>
+                    
+                    <div class="flex flex-col items-center group cursor-pointer" onclick="openMethodologyModal(4)">
+                        <div class="w-5 h-5 rounded-full border-4 border-white shadow node-circle {{ MACRO_PHASE_3_COLOR }}"></div>
+                        <span class="text-xs font-bold mt-2 whitespace-nowrap {{ MACRO_PHASE_3_TEXT }}">Fase 2: Fichamento</span>
+                        <div class="mt-1 bg-gray-50 border border-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-mono shadow-sm {{ MACRO_PHASE_3_BADGE }}">{{ T_DUR_F2 }}</div>
+                    </div>
+                    
+                    <div class="flex flex-col items-center group cursor-pointer" onclick="openMethodologyModal(5)">
+                        <div class="w-5 h-5 rounded-full border-4 border-white shadow node-circle {{ MACRO_PHASE_4_COLOR }}"></div>
+                        <span class="text-xs font-bold mt-2 whitespace-nowrap {{ MACRO_PHASE_4_TEXT }}">Fase 3: Síntese</span>
+                        <div class="mt-1 bg-gray-50 border border-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-mono shadow-sm {{ MACRO_PHASE_4_BADGE }}">{{ T_DUR_F3 }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Animated Current Task and Macro Progress -->
+            <div class="mt-8 flex justify-between items-end px-2 border-t border-gray-100 pt-4">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Processo Atual</p>
+                    <p class="text-sm font-semibold {{ CURRENT_TASK_COLOR }} {{ CURRENT_TASK_PULSE }} font-mono flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-current"></span>
+                        {{ CURRENT_TASK_TEXT }}
+                    </p>
+                </div>
+                <div class="text-right flex gap-6">
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Progresso da Fase</p>
+                        <p class="text-lg font-bold text-gray-900">{{ PROGRESS_PERCENT }}%</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase">Latência Média</p>
+                        <p class="text-lg font-semibold text-gray-700">{{ ITEMS_PER_SECOND }}s <span class="text-xs font-normal text-gray-400">/ item</span></p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Top Area (5:2) -->
+        <div class="grid grid-cols-7 gap-6 mb-6">
+            <!-- Left 5: Live Event Stream -->
+            <div class="col-span-5 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[400px]">
+                <div class="bg-gray-50 border-b border-gray-200 px-4 py-3">
+                    <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Feed de Eventos em Tempo Real (Últimos 20)</h2>
+                </div>
+                <div class="p-4 overflow-y-auto flex-1 bg-gray-50/50">
+                    <div class="space-y-3">
+                        {{ LIVE_EVENTS | safe }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right 2: Phase Metrics -->
+            <div class="col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                <div class="bg-gray-50 border-b border-gray-200 px-4 py-3">
+                    <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Métricas da Fase</h2>
+                </div>
+                <div class="p-4 flex-1">
+                    {{ PHASE_METRICS | safe }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Area: Totalizers -->
+        <div class="grid grid-cols-4 gap-6 mb-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <p class="text-sm font-medium text-gray-500 truncate">Total Processados</p>
+                <p class="mt-2 text-3xl font-semibold text-gray-900">{{ TOTAL_PROCESSED }} <span class="text-sm text-gray-400 font-normal">/ {{ TOTAL_TARGET }}</span></p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <p class="text-sm font-medium text-green-600 truncate">{{ SUCCESS_LABEL }}</p>
+                <p class="mt-2 text-3xl font-semibold text-gray-900">{{ TOTAL_SUCCESS }} <span class="text-sm text-gray-400 font-normal">({{ SUCCESS_PERCENT }}%)</span></p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <p class="text-sm font-medium text-yellow-600 truncate">Excluídos Cient.</p>
+                <p class="mt-2 text-3xl font-semibold text-gray-900">{{ TOTAL_EXCLUDED }} <span class="text-sm text-gray-400 font-normal">({{ EXCLUDED_PERCENT }}%)</span></p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <p class="text-sm font-medium text-red-600 truncate">{{ FAIL_LABEL }}</p>
+                <p class="mt-2 text-3xl font-semibold text-gray-900">{{ TOTAL_FAILS }} <span class="text-sm text-gray-400 font-normal">({{ FAIL_PERCENT }}%)</span></p>
+            </div>
+        </div>
+
+        </div>
+    </div>
+    
+    <!-- Modal de Metodologia -->
+    <div id="methodologyModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 modal items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-indigo-50 rounded-t-lg">
+                <h3 class="text-xl font-bold text-indigo-900" id="methTitle">Detalhes da Fase Metodológica</h3>
+                <button onclick="closeModal('methodologyModal')" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-8" id="methDesc">
+                <!-- Texto da fase -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Histórico -->
+    <div id="history-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 modal items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col max-h-[80vh]">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-lg">
+                <h3 class="text-lg font-bold text-gray-900">Histórico de Fases Concluídas</h3>
+                <button onclick="document.getElementById('history-modal').classList.remove('active')" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-0 overflow-y-auto flex-1">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 border-b border-gray-200">
+                        <tr>
+                            <th class="py-3 px-4 font-semibold">Fase</th>
+                            <th class="py-3 px-4 font-semibold">Processados</th>
+                            <th class="py-3 px-4 font-semibold">Sucesso</th>
+                            <th class="py-3 px-4 font-semibold">Falhas</th>
+                            <th class="py-3 px-4 font-semibold">Concluído Em</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{ PHASES_HISTORY_ROWS | safe }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const methodologyData = {{ METHODOLOGY_JSON | safe }};
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+            if(modalId === 'methodologyModal') {
+                document.getElementById('methDesc').innerHTML = '';
+                document.body.style.overflow = 'auto';
+            }
+        }
+        
+        function openMethodologyModal(phase) {
+            let title = "";
+            let desc = "";
+            
+            if (phase === 1) {
+                title = "Fase 0: Ingestão de Dados (API-First)";
+                desc = methodologyData["FASE0"] || "Texto não encontrado. Atualize o spec.md com a tag correspondente.";
+            } else if (phase === 2) {
+                title = "Fase 1: Triagem (Screening)";
+                desc = methodologyData["FASE1"] || "Texto não encontrado. Atualize o spec.md com a tag correspondente.";
+            } else if (phase === 3) {
+                title = "Fase 1.5: Auditoria Visual e Loop HITL";
+                desc = methodologyData["FASE_AUDITORIA"] || "Texto não encontrado. Atualize o spec.md com a tag correspondente.";
+            } else if (phase === 4) {
+                title = "Fase 2: Fichamento e Extração";
+                desc = methodologyData["FASE2"] || "Texto não encontrado. Atualize o spec.md com a tag correspondente.";
+            } else if (phase === 5) {
+                title = "Fase 3: Síntese Final";
+                desc = methodologyData["FASE3"] || "Texto não encontrado. Atualize o spec.md com a tag correspondente.";
+            }
+            
+            // Format markdown text to basic HTML
+            let htmlDesc = desc.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            htmlDesc = htmlDesc.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            htmlDesc = htmlDesc.replace(/`(.*?)`/g, '<code class="bg-gray-200 px-1 rounded text-sm text-indigo-700">$1</code>');
+            htmlDesc = htmlDesc.replace(/\n/g, '<br>');
+            
+            document.getElementById('methTitle').innerText = title;
+            document.getElementById('methDesc').innerHTML = `<div class="text-sm text-gray-800 leading-relaxed">${htmlDesc}</div>`;
+            
+            document.getElementById('methodologyModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Animated Macro Progress Bar
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const bar = document.querySelector('.macro-progress-bar');
+                if (bar && bar.dataset.targetWidth) bar.style.width = bar.dataset.targetWidth;
+            }, 500);
+        });
+        
+        // Global Live Timer
+        setInterval(() => {
+            const timerEl = document.getElementById("global-timer");
+            if (timerEl && timerEl.dataset.start && timerEl.dataset.start !== "0") {
+                const startTs = parseInt(timerEl.dataset.start) * 1000; // Python gives Unix seconds
+                const now = new Date().getTime();
+                let diff = Math.floor((now - startTs) / 1000);
+                if (diff < 0) diff = 0;
+                const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+                const s = (diff % 60).toString().padStart(2, '0');
+                timerEl.innerText = `Total: ${h}:${m}:${s}`;
+            }
+        }, 1000);
+        
+        // Escape to close active modal
+        document.addEventListener('keydown', function(e) {
+            if(e.key === 'Escape') {
+                document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        // JSONP Silent Poller (Atualiza a página apenas quando o arquivo Python avisa que há novos dados)
+        const CURRENT_UPDATE_TIME = {{ TIMESTAMP_JS | safe }};
+        setInterval(() => {
+            fetch("LIVE_PROGRESS_STATE.json?t=" + new Date().getTime())
+                .then(res => res.json())
+                .then(data => {
+                    if (data.update_time && data.update_time > CURRENT_UPDATE_TIME) {
+                        window.location.reload();
+                    }
+                })
+                .catch(err => { /* ignora erro de fetch */ });
+        }, 1500);
+    </script>
+</body>
+</html>

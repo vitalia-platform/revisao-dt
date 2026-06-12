@@ -1,4 +1,4 @@
-# scripts/review_pipeline/run_fase2_extraction.py | Atualizado em: 03-06-2026 12:02:36(GMT-04:00)
+# scripts/review_pipeline/run_fase2_extraction.py | Atualizado em: 11-06-2026 08:00:00(GMT-04:00)
 """
 run_fase2_extraction.py — Extração Profunda e Fichamento Acadêmico dos Arquivos (Fase 2)
 
@@ -14,15 +14,27 @@ import os
 import re
 import sys
 import time
+import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from pypdf import PdfReader
 
 # Garante que o pacote core seja encontrado
 sys.path.insert(0, os.path.dirname(__file__))
 
 from core.config_manager import load_config
-from core.ollama_client import query_ollama, check_ollama_alive, unload_model
+from core.ollama_client import unload_model
+from core.lib_llm_router import LLMRouter
 from core.auditor import ReviewAuditor
+from core.state_manager import StateManager
 from core import terminal
+
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+from scripts.generate_live_dashboard import build_dashboard
 
 def calculate_sha256(filepath: str) -> str:
     sha256 = hashlib.sha256()
@@ -168,10 +180,20 @@ def main():
     data_storage = infrastructure.get("data_storage", ".agent/data_storage")
     
     audit_base_dir = os.path.join(data_storage, "saida", "auditoria")
-    auditor = ReviewAuditor(base_audit_dir=audit_base_dir)
+    auditor = ReviewAuditor(base_output_dir=audit_base_dir)
+    def update_dashboards():
+        try:
+            from scripts.generate_live_dashboard import build_dashboard as build_live_dashboard
+            from scripts.generate_progress import generate_dashboard as build_progress_dashboard
+            build_live_dashboard()
+            build_progress_dashboard()
+        except Exception as e:
+            print(f"[Aviso] Falha ao atualizar dashboards: {e}")
+
+    state_mgr = StateManager(on_event_callback=update_dashboards)
     
     ollama_config = infrastructure.get("llm_router", {})
-    base_url = ollama_config.get("ollama_url", "http://192.168.0.254:11434")
+    base_url = os.path.expandvars(ollama_config.get("ollama_url", "http://192.168.0.254:11434"))
     api_url = f"{base_url.rstrip('/')}/api/generate"
     model = ollama_config.get("model_local", "qwen2.5-coder-vitalia:latest")
     options = ollama_config.get("options", {})
@@ -184,20 +206,21 @@ def main():
     processed_this_session = 0
     current_file_name = ""
     total_files = 0
+    
+    router = LLMRouter(args.config)
 
     terminal.setup_interrupt_handler(
-        api_url=api_url, 
-        model=model, 
+        router=router, 
         get_context_fn=lambda: {"idx": processed_this_session, "total": total_files, "current_article": current_file_name}
     )
 
-    print(f"\n\033[94m🔍 Pré-flight check: Verificando conexão com Ollama em {base_url}...\033[0m")
-    if not check_ollama_alive(api_url):
-        print(f"\033[91m[ERRO] Servidor Ollama inativo ou inacessível no endpoint {base_url}.\033[0m")
+    print(f"\n\033[94m🔍 Pré-flight check: Verificando LLM backend (Ollama fallback)... \033[0m")
+    if not router.check_ollama_alive(base_url):
+        print(f"\033[91m[ERRO] Servidor Ollama inativo ou inacessível no endpoint {base_url}. Verifique seu router.\033[0m")
         sys.exit(1)
-    print(f"\033[92m✔ Ollama ativo! Iniciando (Overnight: {is_overnight}).\033[0m\n")
+    print(f"\033[92m✔ Router ativo! Iniciando (Overnight: {is_overnight}).\033[0m\n")
 
-    prisma_log_path = os.path.join(data_storage, "saida", "PRISMA_LOG.csv")
+    prisma_log_path = os.path.join(data_storage, "saida", "PRISMA_LOG_MASTER.csv")
     download_map_path = os.path.join(data_storage, "saida", "DOWNLOAD_MAP.csv")
     pdf_dir = os.path.join(data_storage, "fichamentos", "pdfs")
     xml_dir = os.path.join(data_storage, "fichamentos", "xmls")
@@ -205,20 +228,31 @@ def main():
     template_path = os.path.join("inicio", "TEMPLATE_FICHAMENTO.md")
     extraction_csv_path = os.path.join(data_storage, "saida", "EXTRACTION_LOG.csv")
     
+    
+            
     os.makedirs(fichamentos_dir, exist_ok=True)
         
     articles_map = {}
+    
+    # 1. Carregar mapeamento de downloads
+    downloaded_files = {}
     if os.path.exists(download_map_path):
         with open(download_map_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 if row.get("Status") in ["Downloaded", "Local/Existing", "Local/XML", "Local/PDF", "EuropePMC/XML", "OpenAlex/PDF"]:
-                    articles_map[row.get("Saved_Filename", "")] = row
+                    downloaded_files[row.get("Original_Title", "")] = row.get("Saved_Filename", "")
                     
-    if not articles_map and os.path.exists(prisma_log_path):
+    # 2. Carregar PRISMA_LOG_MASTER.csv para metadados completos
+    if os.path.exists(prisma_log_path):
         with open(prisma_log_path, "r", encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 title = row.get("Title", "").strip()
+                if not title: continue
+                
+                # Se estiver no map, usa o Saved_Filename real, senão usa o esperado
+                saved_filename = downloaded_files.get(title)
+                
                 first_author = row.get("Authors", "SemAutor").split(",")[0].split(" ")[0].strip()
                 first_author = re.sub(r"[^\w\s-]", "", first_author)
                 first_author = re.sub(r"[-\s]+", "_", first_author).strip("_")
@@ -227,6 +261,10 @@ def main():
                 expected_pdf_name = f"{first_author}_{row.get('Year', '0000')}_{clean_title}.pdf"
                 expected_xml_name = f"{first_author}_{row.get('Year', '0000')}_{clean_title}.xml"
                 row["Original_Title"] = title
+                
+                if saved_filename:
+                    articles_map[saved_filename] = row
+                    
                 articles_map[expected_pdf_name] = row
                 articles_map[expected_xml_name] = row
 
@@ -251,6 +289,7 @@ def main():
         print("\033[91m[ERRO] Nenhum arquivo PDF ou XML encontrado.\033[0m")
         sys.exit(1)
         
+    state_mgr.set_active_state("fase2b_extraction", "Fase 2b: Extração Profunda", total_files, current_task="Preparando LLM para extração...")
     terminal.print_section_header(f"FASE 2 — EXTRAÇÃO PROFUNDA ({total_files} Arquivo(s) para fichamento)")
 
     existing_extractions = {}
@@ -262,28 +301,22 @@ def main():
         except Exception:
             pass
 
+    # P7 — Append puro: elimina o O(N²) de ler+reescrever todo o CSV a cada artigo.
+    # Idempotência garantida pela verificação de `fichamento_save_path` existente no topo do loop.
+    # Se o script reiniciar, artigos com fichamento .md já existente são pulados → sem duplicatas.
+    CSV_FIELDNAMES = [
+        "Filename", "Original_Title", "DOI", "Study_Design", "Evidence_Level",
+        "Population_Profile", "Country", "Intervention_Duration",
+        "Technology_Type", "Key_Numerical_Results", "SHA256", "Model_Used", "Extraction_Date",
+    ]
+
     def update_extraction_csv(row_data: dict):
-        fieldnames = [
-            "Filename", "Original_Title", "DOI", "Study_Design", "Evidence_Level", 
-            "Population_Profile", "Country", "Intervention_Duration", 
-            "Technology_Type", "Key_Numerical_Results", "SHA256", "Model_Used", "Extraction_Date"
-        ]
-        all_rows = {}
-        if os.path.exists(extraction_csv_path):
-            try:
-                with open(extraction_csv_path, "r", encoding="utf-8") as f:
-                    for line in csv.DictReader(f):
-                        all_rows[line["Filename"]] = line
-            except Exception:
-                pass
-                
-        all_rows[row_data["Filename"]] = row_data
-        
-        with open(extraction_csv_path, "w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for fn in sorted(all_rows.keys()):
-                writer.writerow(all_rows[fn])
+        file_exists = os.path.exists(extraction_csv_path)
+        with open(extraction_csv_path, "a", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(row_data)
 
     success_count = 0
     skipped_count = 0
@@ -295,12 +328,15 @@ def main():
         for idx, (filename, filepath, ftype) in enumerate(files_to_process, 1):
             current_file_name = filename
             terminal.show_progress_bar(idx, total_files, success=success_count, skipped=skipped_count, erros=errors_count)
+            terminal.print_step(filename[:60] + "...")
+            state_mgr.update_state(current_task=f"Fichando: {filename[:50]}...")
             
             fichamento_name = f"FICHAMENTO_{os.path.splitext(filename)[0]}.md"
             fichamento_save_path = os.path.join(fichamentos_dir, fichamento_name)
             
             if os.path.exists(fichamento_save_path) and filename in existing_extractions:
                 skipped_count += 1
+                state_mgr.update_state(processed=1, skipped=1)
                 continue
                 
             sha256_hash = calculate_sha256(filepath)
@@ -361,11 +397,17 @@ EXPECTED JSON FORMAT:
             success = False
             while not success:
                 try:
-                    response = query_ollama(prompt, api_url, model, options, circuit_breaker_state=cb_state)
-                    resp_text = response.get("response", "").strip()
-                    resp_text = re.sub(r"^```(?:json)?|```$", "", resp_text, flags=re.MULTILINE).strip()
+                    start_time = time.time()
+                    res_json, backend_used, model_used, tokens_dict = router.generate("extraction", prompt, json_format=True)
+                    lat_sec = round(time.time() - start_time, 2)
                     
-                    extracted_json = json.loads(resp_text)
+                    if not res_json or not isinstance(res_json, dict) or "error" in res_json:
+                        error_msg = res_json.get("error", "LLMRouter retornou None") if isinstance(res_json, dict) else "Formato inválido"
+                        raise Exception(f"Falha de LLM: {error_msg}")
+                        
+                    extracted_json = res_json
+                    resp_text = json.dumps(extracted_json, ensure_ascii=False)
+                    
                     for k, v in list(extracted_json.items()):
                         if isinstance(v, list): extracted_json[k] = ", ".join(map(str, v))
                         elif isinstance(v, dict): extracted_json[k] = json.dumps(v, ensure_ascii=False)
@@ -383,10 +425,16 @@ EXPECTED JSON FORMAT:
                         "article_metadata": article_info,
                         "full_prompt": prompt,
                         "raw_llm_response": resp_text,
-                        "parsed_data": extracted_json
+                        "parsed_data": extracted_json,
+                        "status": "SUCCESS",
+                        "inference_metrics": {
+                            "model": model_used, 
+                            "latency_seconds": lat_sec,
+                            "tokens_in": tokens_dict.get("prompt_eval_count", 0),
+                            "tokens_out": tokens_dict.get("eval_count", 0),
+                            "tokens_total": tokens_dict.get("prompt_eval_count", 0) + tokens_dict.get("eval_count", 0)
+                        }
                     }
-                    auditor.save_inference_shard(phase=2, item_id=filename, payload=audit_payload)
-                    
                     csv_row = {
                         "Filename": filename,
                         "Original_Title": article_info.get("Original_Title", ""),
@@ -400,13 +448,19 @@ EXPECTED JSON FORMAT:
                         "Key_Numerical_Results": extracted_json.get("key_findings", "Não especificado"),
                         "SHA256": sha256_hash,
                         "Model_Used": model,
-                        "Extraction_Date": time.strftime("%d-%m-%Y")
+                        "Extraction_Date": time.strftime("%d-%m-%Y"),
                     }
-                    update_extraction_csv(csv_row)
-                    
-                    success = True
-                    success_count += 1
-                    processed_this_session += 1
+
+                    # --- P4: Transacionalidade — shard + csv + estado em bloco atômico ---
+                    try:
+                        auditor.save_inference_shard(phase=2, item_id=filename, payload=audit_payload)
+                        update_extraction_csv(csv_row)
+                    finally:
+                        success = True
+                        success_count += 1
+                        processed_this_session += 1
+                        state_mgr.update_state(processed=1, success=1)
+                    terminal.print_success(f"Extração concluída via {backend_used}/{model_used}")
                     
                 except Exception as e:
                     choice, is_timeout = terminal.handle_error_menu(
@@ -434,6 +488,7 @@ EXPECTED JSON FORMAT:
                         }
                         update_extraction_csv(csv_row)
                         errors_count += 1
+                        state_mgr.update_state(processed=1, fails=1)
                         success = True
                     elif choice == "3":
                         print("\nProcessamento pausado pelo usuário.")
@@ -454,6 +509,7 @@ EXPECTED JSON FORMAT:
             model=model, 
             phase_label="Fase 2 - Extração (Híbrida)"
         )
+        state_mgr.update_state(finish=True)
         print(f"Relatório da sessão salvo em: {report_path}")
 
 if __name__ == "__main__":
